@@ -14,16 +14,21 @@ function Check() {
 export default function Header() {
   const [sesion, setSesion] = useState(false)
   const [verificado, setVerificado] = useState(null)
+  const [esAdmin, setEsAdmin] = useState(false)
 
   useEffect(() => {
     async function actualizar(session) {
       setSesion(!!session)
       if (!session) {
         setVerificado(null)
+        setEsAdmin(false)
         return
       }
       const { data } = await supabase.from('perfiles').select('verificado').eq('id', session.user.id).single()
       setVerificado(data ? !!data.verificado : null)
+      // Solo los administradores figuran en la tabla admins
+      const { data: admin } = await supabase.from('admins').select('user_id').eq('user_id', session.user.id).maybeSingle()
+      setEsAdmin(!!admin)
     }
     supabase.auth.getSession().then(({ data }) => actualizar(data.session))
     const { data: listener } = supabase.auth.onAuthStateChange((_evento, session) => {
@@ -60,6 +65,7 @@ export default function Header() {
           )}
           {sesion ? (
             <>
+              {esAdmin && <Link href="/admin" className={enlace}>Admin</Link>}
               <Link href="/mis-publicaciones" className={enlace}>Mis publicaciones</Link>
               <button onClick={salir} className={enlace}>Salir</button>
             </>
