@@ -249,6 +249,12 @@ export default function Home() {
           })}
         </div>
       )}
+
+      <footer className="mt-12 border-t border-line pt-6 text-center text-xs text-muted">
+        <a href="/privacidad" className="hover:text-ink hover:underline">Política de privacidad</a>
+        <span className="mx-2">·</span>
+        <a href="/terminos" className="hover:text-ink hover:underline">Términos y condiciones</a>
+      </footer>
     </div>
   )
 }

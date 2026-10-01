@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../../src/lib/supabase'
 import { CATEGORIAS } from '../../src/lib/categorias'
+import { comprimirImagen } from '../../src/lib/imagenes'
 
 const campo =
   'w-full rounded-lg border border-line bg-white px-3 text-sm focus:border-brand focus:outline-none'
@@ -54,19 +55,24 @@ export default function PublicarPage() {
       avisar('Escribe un precio válido o marca "Lo regalo".', true)
       return
     }
-    if (imagenArchivo && imagenArchivo.size > 5 * 1024 * 1024) {
-      avisar('La foto es muy pesada. Máximo 5 MB.', true)
+    if (imagenArchivo && imagenArchivo.size > 30 * 1024 * 1024) {
+      avisar('Esa foto es demasiado grande. Prueba con otra.', true)
       return
     }
 
     setCargando(true)
-    avisar('Publicando...')
 
     let imagenUrl = null
     if (imagenArchivo) {
-      const extension = (imagenArchivo.name.split('.').pop() || 'jpg').toLowerCase()
+      avisar('Optimizando la foto...')
+      // Reduce la foto en el navegador antes de subirla (ahorra datos y espacio)
+      const foto = await comprimirImagen(imagenArchivo)
+      const extension = foto.type === 'image/jpeg' ? 'jpg' : (foto.name.split('.').pop() || 'jpg').toLowerCase()
       const nombreArchivo = `${usuario.id}-${Date.now()}.${extension}`
-      const { error: errorSubida } = await supabase.storage.from('imagenes').upload(nombreArchivo, imagenArchivo)
+      avisar('Publicando...')
+      const { error: errorSubida } = await supabase.storage
+        .from('imagenes')
+        .upload(nombreArchivo, foto, { contentType: foto.type || 'image/jpeg', cacheControl: '31536000' })
 
       if (errorSubida) {
         avisar('Error al subir la foto: ' + errorSubida.message, true)
@@ -76,6 +82,7 @@ export default function PublicarPage() {
       const { data: publicData } = supabase.storage.from('imagenes').getPublicUrl(nombreArchivo)
       imagenUrl = publicData.publicUrl
     }
+    avisar('Publicando...')
 
     const { error: errorInsert } = await supabase.from('publicaciones').insert([
       {
@@ -204,7 +211,7 @@ export default function PublicarPage() {
               onChange={(e) => setImagenArchivo(e.target.files[0] || null)}
               className="w-full cursor-pointer rounded-lg border border-line bg-white p-2 text-sm text-muted file:mr-3 file:rounded-md file:border-0 file:bg-brand-soft file:px-3 file:py-1.5 file:text-sm file:font-semibold file:text-brand"
             />
-            <p className="mt-1 text-xs text-muted">Una foto clara. Máximo 5 MB.</p>
+            <p className="mt-1 text-xs text-muted">Sube la foto que quieras: la ajustamos automáticamente.</p>
           </div>
 
           <div>

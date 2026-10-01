@@ -31,6 +31,7 @@ export default function LoginPage() {
   const [mensaje, setMensaje] = useState('')
   const [error, setError] = useState(false)
   const [enviando, setEnviando] = useState(false)
+  const [acepto, setAcepto] = useState(false)
 
   useEffect(() => {
     async function cargarBarrios() {
@@ -72,12 +73,27 @@ export default function LoginPage() {
         setEnviando(false)
         return
       }
+      if (!acepto) {
+        avisar('Debes aceptar los términos y la política de datos para registrarte.', true)
+        setEnviando(false)
+        return
+      }
 
       // El perfil lo crea un trigger en la base de datos con estos datos
       const { data, error: authError } = await supabase.auth.signUp({
         email,
         password,
-        options: { data: { nombre: nombre.trim(), municipio, barrio, telefono: tel } },
+        options: {
+          data: {
+            nombre: nombre.trim(),
+            municipio,
+            barrio,
+            telefono: tel,
+            // Constancia de la autorización (Ley 1581 de 2012)
+            acepto_datos_at: new Date().toISOString(),
+            version_politica: '1.0',
+          },
+        },
       })
 
       if (authError) {
@@ -173,6 +189,29 @@ export default function LoginPage() {
             <label className="mb-1 block text-sm font-medium">Contraseña</label>
             <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={6} className={campo} />
           </div>
+
+          {registrando && (
+            <label className="flex cursor-pointer items-start gap-2 text-xs leading-relaxed text-muted">
+              <input
+                type="checkbox"
+                checked={acepto}
+                onChange={(e) => setAcepto(e.target.checked)}
+                required
+                className="mt-0.5 h-4 w-4 shrink-0 accent-[#1f7a4d]"
+              />
+              <span>
+                He leído y acepto los{' '}
+                <a href="/terminos" target="_blank" rel="noopener noreferrer" className="font-semibold text-brand hover:underline">
+                  Términos y condiciones
+                </a>{' '}
+                y la{' '}
+                <a href="/privacidad" target="_blank" rel="noopener noreferrer" className="font-semibold text-brand hover:underline">
+                  Política de privacidad
+                </a>
+                , y autorizo el tratamiento de mis datos personales (nombre, celular, correo y barrio) para los fines allí descritos.
+              </span>
+            </label>
+          )}
 
           <button
             type="submit"
