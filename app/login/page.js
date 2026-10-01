@@ -1,161 +1,203 @@
 'use client'
-import { useState } from 'react'
-import { createClient } from '@supabase/supabase-js'
+import { useState, useEffect, useMemo } from 'react'
+import { supabase } from '../../src/lib/supabase'
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-)
+// Devuelve el telefono con indicativo de Colombia (57) o null si es invalido
+function normalizarTelefono(valor) {
+  const d = valor.replace(/\D/g, '')
+  if (d.length === 10 && d.startsWith('3')) return '57' + d
+  if (d.length === 12 && d.startsWith('57')) return d
+  return null
+}
+
+// A dónde volver después de ingresar (solo rutas internas)
+function destino() {
+  const v = new URLSearchParams(window.location.search).get('volver')
+  return v && v.startsWith('/') && !v.startsWith('//') ? v : '/'
+}
+
+const campo =
+  'h-11 w-full rounded-lg border border-line bg-white px-3 text-sm focus:border-brand focus:outline-none'
 
 export default function LoginPage() {
-  const [isRegistering, setIsRegistering] = useState(false)
+  const [registrando, setRegistrando] = useState(false)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [nombre, setNombre] = useState('')
-  const [barrio, setBarrio] = useState('')
   const [telefono, setTelefono] = useState('')
+  const [municipio, setMunicipio] = useState('')
+  const [barrio, setBarrio] = useState('')
+  const [barrios, setBarrios] = useState([])
   const [mensaje, setMensaje] = useState('')
+  const [error, setError] = useState(false)
+  const [enviando, setEnviando] = useState(false)
 
-  const handleAuth = async (e) => {
+  useEffect(() => {
+    async function cargarBarrios() {
+      const { data, error } = await supabase.from('barrios').select('municipio, nombre').order('nombre')
+      if (error) console.error('Error al cargar barrios:', error.message)
+      else setBarrios(data || [])
+    }
+    cargarBarrios()
+  }, [])
+
+  const municipios = useMemo(
+    () => [...new Set(barrios.map((b) => b.municipio))].sort((a, b) => a.localeCompare(b, 'es')),
+    [barrios]
+  )
+  const barriosDelMunicipio = useMemo(
+    () => barrios.filter((b) => b.municipio === municipio),
+    [barrios, municipio]
+  )
+
+  function avisar(texto, esError = false) {
+    setMensaje(texto)
+    setError(esError)
+  }
+
+  async function handleAuth(e) {
     e.preventDefault()
-    setMensaje('Procesando...')
+    setEnviando(true)
+    avisar('Procesando...')
 
-    if (isRegistering) {
-      // 1. Registrar en Supabase Auth
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email,
-        password,
-      })
-
-      if (authError) {
-        setMensaje('Error al registrar: ' + authError.message)
+    if (registrando) {
+      const tel = normalizarTelefono(telefono)
+      if (!tel) {
+        avisar('Escribe un celular válido de 10 dígitos, por ejemplo 3001234567.', true)
+        setEnviando(false)
+        return
+      }
+      if (!municipio || !barrio) {
+        avisar('Elige tu municipio y tu barrio.', true)
+        setEnviando(false)
         return
       }
 
-      const user = authData.user
-      if (user) {
-        // 2. Guardar el perfil asociado con el ID del usuario recién creado
-        const { error: perfilError } = await supabase.from('perfiles').insert([
-          {
-            id: user.id,
-            nombre,
-            barrio,
-            telefono,
-            verificado: false // Por defecto pendiente de aprobación
-          }
-        ])
-
-        if (perfilError) {
-          setMensaje('Cuenta creada, pero error en perfil: ' + perfilError.message)
-        } else {
-          setMensaje('¡Registro exitoso! Por favor verifica tu correo si es necesario o inicia sesión.')
-          setIsRegistering(false)
-        }
-      }
-    } else {
-      // Iniciar sesión
-      const { error } = await supabase.auth.signInWithPassword({
+      // El perfil lo crea un trigger en la base de datos con estos datos
+      const { data, error: authError } = await supabase.auth.signUp({
         email,
         password,
+        options: { data: { nombre: nombre.trim(), municipio, barrio, telefono: tel } },
       })
 
-      if (error) {
-        setMensaje('Error al entrar: ' + error.message)
+      if (authError) {
+        avisar('Error al registrar: ' + authError.message, true)
+      } else if (data.session) {
+        avisar('¡Cuenta creada! Un administrador debe verificarte antes de que puedas publicar.')
+        setTimeout(() => (window.location.href = destino()), 1500)
       } else {
-        setMensaje('¡Inicio de sesión exitoso! Redirigiendo...')
-        window.location.href = '/publicar'
+        avisar('Cuenta creada. Revisa tu correo para confirmarla y luego inicia sesión.')
+        setRegistrando(false)
+      }
+    } else {
+      const { error: loginError } = await supabase.auth.signInWithPassword({ email, password })
+      if (loginError) {
+        avisar('Correo o contraseña incorrectos.', true)
+      } else {
+        window.location.href = destino()
+        return
       }
     }
+    setEnviando(false)
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-6">
-      <div className="bg-white p-8 rounded-2xl shadow-md w-full max-w-md">
-        <h1 className="text-2xl font-bold text-blue-600 mb-1 text-center">
-          {isRegistering ? 'Registro de Vecino' : 'Iniciar Sesión'}
+    <div className="mx-auto flex max-w-md flex-col px-4 py-10">
+      <div className="rounded-2xl border border-line bg-white p-6 shadow-sm sm:p-8">
+        <h1 className="text-2xl font-extrabold tracking-tight">
+          {registrando ? 'Únete a tus vecinos' : 'Bienvenido de nuevo'}
         </h1>
-        <p className="text-slate-500 text-sm mb-6 text-center">Mercado Hiperlocal - Sin Comisiones</p>
+        <p className="mb-6 mt-1 text-sm text-muted">
+          {registrando
+            ? 'Regístrate para publicar y contactar. Explorar no requiere cuenta.'
+            : 'Inicia sesión para contactar vecinos y gestionar tus anuncios.'}
+        </p>
 
         <form onSubmit={handleAuth} className="space-y-4">
-          {isRegistering && (
+          {registrando && (
             <>
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Nombre completo</label>
-                <input 
-                  type="text" 
-                  value={nombre} 
-                  onChange={(e) => setNombre(e.target.value)} 
-                  required 
-                  className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800"
+                <label className="mb-1 block text-sm font-medium">Nombre completo</label>
+                <input type="text" value={nombre} onChange={(e) => setNombre(e.target.value)} required className={campo} />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium">Celular / WhatsApp</label>
+                <input
+                  type="tel"
+                  inputMode="numeric"
+                  value={telefono}
+                  onChange={(e) => setTelefono(e.target.value)}
+                  required
+                  placeholder="3001234567"
+                  className={campo}
                 />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Barrio</label>
-                <input 
-                  type="text" 
-                  value={barrio} 
-                  onChange={(e) => setBarrio(e.target.value)} 
-                  required 
-                  className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Teléfono / WhatsApp</label>
-                <input 
-                  type="text" 
-                  value={telefono} 
-                  onChange={(e) => setTelefono(e.target.value)} 
-                  required 
-                  className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800"
-                />
+
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div>
+                  <label className="mb-1 block text-sm font-medium">Municipio</label>
+                  <select
+                    value={municipio}
+                    onChange={(e) => { setMunicipio(e.target.value); setBarrio('') }}
+                    required
+                    className={campo}
+                  >
+                    <option value="">Elige...</option>
+                    {municipios.map((m) => <option key={m} value={m}>{m}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="mb-1 block text-sm font-medium">Barrio</label>
+                  <select
+                    value={barrio}
+                    onChange={(e) => setBarrio(e.target.value)}
+                    required
+                    disabled={!municipio}
+                    className={`${campo} disabled:bg-surface disabled:text-muted`}
+                  >
+                    <option value="">{municipio ? 'Elige...' : 'Primero el municipio'}</option>
+                    {barriosDelMunicipio.map((b) => <option key={b.nombre} value={b.nombre}>{b.nombre}</option>)}
+                  </select>
+                </div>
               </div>
             </>
           )}
 
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Correo electrónico</label>
-            <input 
-              type="email" 
-              value={email} 
-              onChange={(e) => setEmail(e.target.value)} 
-              required 
-              className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800"
-            />
+            <label className="mb-1 block text-sm font-medium">Correo electrónico</label>
+            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required className={campo} />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Contraseña</label>
-            <input 
-              type="password" 
-              value={password} 
-              onChange={(e) => setPassword(e.target.value)} 
-              required 
-              className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800"
-            />
+            <label className="mb-1 block text-sm font-medium">Contraseña</label>
+            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={6} className={campo} />
           </div>
 
-          <button 
-            type="submit" 
-            className="w-full bg-blue-600 text-white py-2 rounded-lg font-medium hover:bg-blue-700 transition"
+          <button
+            type="submit"
+            disabled={enviando}
+            className="h-11 w-full rounded-lg bg-brand text-sm font-semibold text-white transition hover:bg-brand-dark disabled:opacity-60"
           >
-            {isRegistering ? 'Registrarse' : 'Entrar'}
+            {registrando ? 'Crear cuenta' : 'Entrar'}
           </button>
         </form>
 
-        <div className="mt-4 text-center">
-          <button 
-            onClick={() => { setIsRegistering(!isRegistering); setMensaje(''); }}
-            className="text-sm text-blue-600 hover:underline"
-          >
-            {isRegistering ? '¿Ya tienes cuenta? Inicia sesión' : '¿No tienes cuenta? Regístrate aquí'}
-          </button>
-        </div>
-
         {mensaje && (
-          <p className="mt-4 text-center text-sm font-medium text-slate-700 bg-slate-100 p-3 rounded-lg">
+          <p className={`mt-4 rounded-lg p-3 text-center text-sm ${error ? 'bg-red-50 text-red-700' : 'bg-brand-soft text-brand-dark'}`}>
             {mensaje}
           </p>
         )}
+
+        <div className="mt-5 text-center">
+          <button
+            type="button"
+            onClick={() => { setRegistrando(!registrando); setMensaje('') }}
+            className="text-sm font-semibold text-brand hover:underline"
+          >
+            {registrando ? '¿Ya tienes cuenta? Inicia sesión' : '¿No tienes cuenta? Regístrate'}
+          </button>
+        </div>
       </div>
     </div>
   )

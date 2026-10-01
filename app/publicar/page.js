@@ -1,246 +1,242 @@
 'use client'
 import { useState, useEffect } from 'react'
-import { createClient } from '@supabase/supabase-js'
+import { supabase } from '../../src/lib/supabase'
+import { CATEGORIAS } from '../../src/lib/categorias'
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-)
+const campo =
+  'w-full rounded-lg border border-line bg-white px-3 text-sm focus:border-brand focus:outline-none'
 
 export default function PublicarPage() {
   const [titulo, setTitulo] = useState('')
   const [descripcion, setDescripcion] = useState('')
   const [precio, setPrecio] = useState('')
-  const [categoria, setCategoria] = useState('Servicios')
+  const [gratis, setGratis] = useState(false)
+  const [categoria, setCategoria] = useState('')
   const [tipo, setTipo] = useState('servicio')
   const [imagenArchivo, setImagenArchivo] = useState(null)
   const [usuario, setUsuario] = useState(null)
   const [perfil, setPerfil] = useState(null)
+  const [verificando, setVerificando] = useState(true)
   const [mensaje, setMensaje] = useState('')
+  const [error, setError] = useState(false)
   const [cargando, setCargando] = useState(false)
 
   useEffect(() => {
     async function verificarSesion() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) {
-        setMensaje('Debes iniciar sesión para publicar.')
+        window.location.href = '/login?volver=/publicar'
         return
       }
       setUsuario(user)
 
-      const { data: perfilData, error } = await supabase
-        .from('perfiles')
-        .select('*')
-        .eq('id', user.id)
-        .single()
-
-      if (error || !perfilData) {
-        setMensaje('No se encontró tu perfil de usuario.')
-      } else {
-        setPerfil(perfilData)
-      }
+      const { data: perfilData } = await supabase.from('perfiles').select('*').eq('id', user.id).single()
+      setPerfil(perfilData || null)
+      setVerificando(false)
     }
     verificarSesion()
   }, [])
 
-  const handleSubmit = async (e) => {
+  function avisar(texto, esError = false) {
+    setMensaje(texto)
+    setError(esError)
+  }
+
+  async function handleSubmit(e) {
     e.preventDefault()
     if (!perfil || !perfil.verificado) {
-      setMensaje('Tu cuenta aún no está verificada por el administrador para realizar publicaciones.')
+      avisar('Tu cuenta aún no está verificada por el administrador.', true)
+      return
+    }
+
+    const precioNumero = gratis ? 0 : parseInt(precio, 10)
+    if (!gratis && (!precioNumero || precioNumero <= 0)) {
+      avisar('Escribe un precio válido o marca "Lo regalo".', true)
+      return
+    }
+    if (imagenArchivo && imagenArchivo.size > 5 * 1024 * 1024) {
+      avisar('La foto es muy pesada. Máximo 5 MB.', true)
       return
     }
 
     setCargando(true)
-    setMensaje('Subiendo imagen y publicando...')
+    avisar('Publicando...')
 
-    let imagenUrlFinal = null
-
-    // Si el usuario seleccionó una imagen, la subimos a Supabase Storage
+    let imagenUrl = null
     if (imagenArchivo) {
-      const nombreArchivo = `${Date.now()}-${imagenArchivo.name.replace(/\s+/g, '_')}`
-      const { data: uploadData, error: uploadError } = await supabase.storage
-        .from('imagenes')
-        .upload(nombreArchivo, imagenArchivo)
+      const extension = (imagenArchivo.name.split('.').pop() || 'jpg').toLowerCase()
+      const nombreArchivo = `${usuario.id}-${Date.now()}.${extension}`
+      const { error: errorSubida } = await supabase.storage.from('imagenes').upload(nombreArchivo, imagenArchivo)
 
-      if (uploadError) {
-        setMensaje('Error al subir la imagen: ' + uploadError.message)
+      if (errorSubida) {
+        avisar('Error al subir la foto: ' + errorSubida.message, true)
         setCargando(false)
         return
       }
-
-      // Obtenemos la URL pública de la imagen alojada en Supabase
-      const { data: publicData } = supabase.storage
-        .from('imagenes')
-        .getPublicUrl(nombreArchivo)
-
-      imagenUrlFinal = publicData.publicUrl
+      const { data: publicData } = supabase.storage.from('imagenes').getPublicUrl(nombreArchivo)
+      imagenUrl = publicData.publicUrl
     }
 
-    // Insertamos la publicación con la URL de la imagen en la base de datos
-    const { error } = await supabase.from('publicaciones').insert([
+    const { error: errorInsert } = await supabase.from('publicaciones').insert([
       {
-        titulo,
-        descripcion,
-        precio: parseFloat(precio),
+        titulo: titulo.trim(),
+        descripcion: descripcion.trim(),
+        precio: precioNumero,
         categoria,
         tipo,
-        imagen: imagenUrlFinal,
+        imagen: imagenUrl,
         user_id: usuario.id,
-        barrio: perfil.barrio
-      }
+        barrio: perfil.barrio,
+      },
     ])
 
-    if (error) {
-      setMensaje('Error al publicar: ' + error.message)
+    if (errorInsert) {
+      avisar('Error al publicar: ' + errorInsert.message, true)
     } else {
-      setMensaje('¡Publicación creada con éxito!')
+      avisar('¡Publicación creada con éxito!')
       setTitulo('')
       setDescripcion('')
       setPrecio('')
+      setGratis(false)
       setImagenArchivo(null)
-      setCategoria('Servicios')
+      setCategoria('')
       setTipo('servicio')
+      e.target.reset()
     }
     setCargando(false)
   }
 
-  if (!usuario) {
-    return (
-      <div className="min-h-screen bg-slate-100 flex flex-col items-center justify-center p-6">
-        <div className="bg-white p-8 rounded-2xl shadow-sm w-full max-w-md text-center">
-          <h1 className="text-xl font-bold text-slate-800 mb-4">Acceso Requerido</h1>
-          <p className="text-slate-600 mb-4">Debes iniciar sesión para poder publicar en el mercado hiperlocal.</p>
-          <a href="/login" className="inline-block bg-blue-600 text-white px-4 py-2 rounded-xl font-medium hover:bg-blue-700 transition">
-            Ir a Iniciar Sesión
-          </a>
-        </div>
-      </div>
-    )
+  if (verificando) {
+    return <div className="mx-auto max-w-lg px-4 py-10 text-center text-sm text-muted">Cargando...</div>
   }
 
-  return (
-    <div className="min-h-screen bg-slate-100 py-10 px-4">
-      <div className="max-w-lg mx-auto bg-white p-8 rounded-2xl shadow-sm border border-slate-200">
-        <h1 className="text-2xl font-bold text-blue-600 mb-1 text-center">Crear Publicación</h1>
-        <p className="text-slate-500 text-sm mb-6 text-center">Comparte tu producto o servicio con tus vecinos</p>
+  const pendiente = !perfil || !perfil.verificado
 
-        {perfil && !perfil.verificado && (
-          <div className="mb-4 bg-amber-50 border border-amber-200 text-amber-800 p-3 rounded-xl text-sm text-center">
-            ⚠️ Tu cuenta está registrada pero <strong>pendiente de verificación</strong> por el administrador.
+  return (
+    <div className="mx-auto max-w-lg px-4 py-8">
+      <div className="rounded-2xl border border-line bg-white p-6 shadow-sm sm:p-8">
+        <h1 className="text-2xl font-extrabold tracking-tight">Crear publicación</h1>
+        <p className="mb-5 mt-1 text-sm text-muted">
+          Comparte tu producto o servicio con tus vecinos{perfil?.barrio ? ` de ${perfil.barrio}` : ''}.
+        </p>
+
+        {pendiente && (
+          <div className="mb-5 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+            Tu cuenta está registrada pero <strong>pendiente de verificación</strong>. Podrás publicar cuando el
+            administrador te apruebe.
           </div>
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">¿Qué deseas publicar?</label>
+            <label className="mb-1 block text-sm font-medium">¿Qué deseas publicar?</label>
             <div className="grid grid-cols-2 gap-3">
-              <button
-                type="button"
-                onClick={() => setTipo('servicio')}
-                className={`py-2 px-4 rounded-xl border font-medium text-sm transition ${
-                  tipo === 'servicio' 
-                    ? 'bg-blue-50 border-blue-600 text-blue-600 shadow-sm' 
-                    : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
-                }`}
-              >
-                🛠️ Servicio
-              </button>
-              <button
-                type="button"
-                onClick={() => setTipo('producto')}
-                className={`py-2 px-4 rounded-xl border font-medium text-sm transition ${
-                  tipo === 'producto' 
-                    ? 'bg-blue-50 border-blue-600 text-blue-600 shadow-sm' 
-                    : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
-                }`}
-              >
-                🛒 Producto
-              </button>
+              {[
+                { valor: 'servicio', etiqueta: 'Servicio' },
+                { valor: 'producto', etiqueta: 'Producto' },
+              ].map((t) => (
+                <button
+                  key={t.valor}
+                  type="button"
+                  onClick={() => setTipo(t.valor)}
+                  className={`h-11 rounded-lg border text-sm font-semibold transition ${
+                    tipo === t.valor ? 'border-brand bg-brand-soft text-brand' : 'border-line bg-white text-muted hover:text-ink'
+                  }`}
+                >
+                  {t.etiqueta}
+                </button>
+              ))}
             </div>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Título</label>
-            <input 
-              type="text" 
-              value={titulo} 
-              onChange={(e) => setTitulo(e.target.value)} 
-              required 
+            <label className="mb-1 block text-sm font-medium">Título</label>
+            <input
+              type="text"
+              value={titulo}
+              onChange={(e) => setTitulo(e.target.value)}
+              required
+              maxLength={80}
               placeholder="Ej. Taladro percutor, Almuerzo casero..."
-              className="w-full px-4 py-2 border rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800"
+              className={`${campo} h-11`}
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Categoría general</label>
-            <select
-              value={categoria}
-              onChange={(e) => setCategoria(e.target.value)}
-              className="w-full px-4 py-2 border rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 bg-white"
-            >
-              <option value="Servicios">Servicios (Oficios, reparaciones, etc.)</option>
-              <option value="Alimentos">Alimentos y Comidas</option>
-              <option value="Ropa">Ropa y Moda</option>
-              <option value="Herramientas y Hogar">Herramientas y Hogar</option>
-              <option value="Otros">Otros</option>
+            <label className="mb-1 block text-sm font-medium">Categoría</label>
+            <select value={categoria} onChange={(e) => setCategoria(e.target.value)} required className={`${campo} h-11`}>
+              <option value="">Elige una categoría...</option>
+              {CATEGORIAS.map((c) => <option key={c.valor} value={c.valor}>{c.etiqueta}</option>)}
             </select>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Precio (COP)</label>
-            <input 
-              type="number" 
-              value={precio} 
-              onChange={(e) => setPrecio(e.target.value)} 
-              required 
-              placeholder="Ej. 45000"
-              className="w-full px-4 py-2 border rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800"
+            <label className="mb-1 block text-sm font-medium">Precio (COP)</label>
+            <input
+              type="number"
+              inputMode="numeric"
+              min="1"
+              value={gratis ? '' : precio}
+              onChange={(e) => setPrecio(e.target.value)}
+              required={!gratis}
+              disabled={gratis}
+              placeholder={gratis ? 'Gratis' : 'Ej. 45000'}
+              className={`${campo} h-11 disabled:bg-surface`}
             />
+            <label className="mt-2 flex cursor-pointer items-center gap-2 rounded-lg border border-gold-soft bg-gold-bg/50 p-3 text-sm">
+              <input
+                type="checkbox"
+                checked={gratis}
+                onChange={(e) => setGratis(e.target.checked)}
+                className="h-4 w-4 accent-[#1f7a4d]"
+              />
+              <span>
+                <strong>Lo regalo</strong> <span className="text-muted">— sin costo para el vecino</span>
+              </span>
+            </label>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Foto del producto o servicio</label>
-            <input 
-              type="file" 
+            <label className="mb-1 block text-sm font-medium">Foto</label>
+            <input
+              type="file"
               accept="image/*"
-              onChange={(e) => setImagenArchivo(e.target.files[0])} 
-              className="w-full px-3 py-2 border rounded-xl text-sm text-slate-600 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-600 hover:file:bg-blue-100 cursor-pointer bg-white"
+              onChange={(e) => setImagenArchivo(e.target.files[0] || null)}
+              className="w-full cursor-pointer rounded-lg border border-line bg-white p-2 text-sm text-muted file:mr-3 file:rounded-md file:border-0 file:bg-brand-soft file:px-3 file:py-1.5 file:text-sm file:font-semibold file:text-brand"
             />
-            <p className="text-xs text-slate-400 mt-1">Sube una foto clara desde tu dispositivo.</p>
+            <p className="mt-1 text-xs text-muted">Una foto clara. Máximo 5 MB.</p>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Descripción</label>
-            <textarea 
-              value={descripcion} 
-              onChange={(e) => setDescripcion(e.target.value)} 
-              rows="3" 
-              required 
+            <label className="mb-1 block text-sm font-medium">Descripción</label>
+            <textarea
+              value={descripcion}
+              onChange={(e) => setDescripcion(e.target.value)}
+              rows={3}
+              required
               placeholder="Detalles, estado, horarios o condiciones..."
-              className="w-full px-4 py-2 border rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800"
-            ></textarea>
+              className={`${campo} py-2`}
+            />
           </div>
 
-          <button 
-            type="submit" 
-            disabled={cargando || (perfil && !perfil.verificado)}
-            className={`w-full py-3 rounded-xl font-medium text-white transition shadow-sm ${
-              perfil && !perfil.verificado ? 'bg-slate-300 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'
-            }`}
+          <button
+            type="submit"
+            disabled={cargando || pendiente}
+            className="h-11 w-full rounded-lg bg-brand text-sm font-semibold text-white transition hover:bg-brand-dark disabled:cursor-not-allowed disabled:bg-line disabled:text-muted"
           >
-            {cargando ? 'Publicando...' : 'Publicar Anuncio'}
+            {cargando ? 'Publicando...' : 'Publicar anuncio'}
           </button>
         </form>
 
         {mensaje && (
-          <p className="mt-4 text-center text-sm font-medium text-slate-700 bg-slate-50 p-3 rounded-xl border border-slate-200">
+          <p className={`mt-4 rounded-lg p-3 text-center text-sm ${error ? 'bg-red-50 text-red-700' : 'bg-brand-soft text-brand-dark'}`}>
             {mensaje}
           </p>
         )}
 
-        <div className="mt-6 text-center">
-          <a href="/" className="text-sm font-medium text-blue-600 hover:underline">
-            ← Volver al Mercado
+        <div className="mt-5 text-center">
+          <a href="/mis-publicaciones" className="text-sm font-semibold text-brand hover:underline">
+            Ver mis publicaciones
           </a>
         </div>
       </div>

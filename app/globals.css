@@ -1,1 +1,28 @@
 @import "tailwindcss";
+
+@theme inline {
+  --color-brand: #1f7a4d;
+  --color-brand-dark: #17613c;
+  --color-brand-soft: #e6f3ec;
+  --color-ink: #17201b;
+  --color-muted: #66726b;
+  --color-line: #e2e7e3;
+  --color-surface: #f5f7f4;
+  --color-gold: #b8913a;
+  --color-gold-soft: #d8c07a;
+  --color-gold-bg: #f7efd6;
+  --color-gold-ink: #7a5c14;
+  --font-sans: var(--font-jakarta), system-ui, sans-serif;
+}
+
+body {
+  background: var(--color-surface);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 2px;
+}
