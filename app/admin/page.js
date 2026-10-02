@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '../../src/lib/supabase'
-import { telefonoDe, rutaEnStorage } from '../../src/lib/contacto'
+import { telefonoDe, rutasEnStorage } from '../../src/lib/contacto'
 
 function formatearCelular(tel) {
   const d = (tel || '').replace(/\D/g, '')
@@ -40,7 +40,7 @@ export default function AdminPage() {
         supabase.from('perfiles').select('*, contactos (telefono)'),
         supabase
           .from('reportes')
-          .select('id, motivo, detalle, created_at, publicaciones (id, titulo, imagen)')
+          .select('id, motivo, detalle, created_at, publicaciones (id, titulo, imagen, imagenes)')
           .eq('resuelto', false)
           .order('created_at', { ascending: false }),
       ])
@@ -101,7 +101,7 @@ export default function AdminPage() {
     setAviso('')
 
     // Antes de borrar, guardamos cuáles eran sus anuncios y fotos
-    const { data: anuncios } = await supabase.from('publicaciones').select('id, imagen').eq('user_id', perfil.id)
+    const { data: anuncios } = await supabase.from('publicaciones').select('id, imagen, imagenes').eq('user_id', perfil.id)
 
     const { error } = await supabase.rpc('admin_eliminar_usuario', { p_user_id: perfil.id })
     if (error) {
@@ -111,7 +111,7 @@ export default function AdminPage() {
     }
 
     // Borra las fotos para no dejar archivos huérfanos
-    const rutas = (anuncios || []).map((a) => rutaEnStorage(a.imagen)).filter(Boolean)
+    const rutas = (anuncios || []).flatMap((a) => rutasEnStorage(a))
     if (rutas.length > 0) await supabase.storage.from('imagenes').remove(rutas)
 
     const idsAnuncios = new Set((anuncios || []).map((a) => a.id))
@@ -142,8 +142,8 @@ export default function AdminPage() {
     if (error || !data || data.length === 0) {
       avisar('No se pudo eliminar el anuncio. ¿Ejecutaste el SQL de la actualización?', true)
     } else {
-      const ruta = rutaEnStorage(pub.imagen)
-      if (ruta) await supabase.storage.from('imagenes').remove([ruta])
+      const rutas = rutasEnStorage(pub)
+      if (rutas.length) await supabase.storage.from('imagenes').remove(rutas)
       setReportes((prev) => prev.filter((r) => r.publicaciones?.id !== pub.id))
       avisar('Anuncio eliminado.')
     }

@@ -1,7 +1,7 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../../../src/lib/supabase'
-import { NOMBRE_APP, precioTexto } from '../../../src/lib/contacto'
+import { NOMBRE_APP, precioTexto, fotosDe } from '../../../src/lib/contacto'
 import BotonContacto from '../../components/BotonContacto'
 import ReportarModal from '../../components/ReportarModal'
 
@@ -21,6 +21,8 @@ export default function AnuncioCliente({ id }) {
   const [miVerificado, setMiVerificado] = useState(false)
   const [reportando, setReportando] = useState(false)
   const [copiado, setCopiado] = useState(false)
+  const [fotoActiva, setFotoActiva] = useState(0)
+  const toqueX = useRef(null)
 
   useEffect(() => {
     async function cargar() {
@@ -93,22 +95,74 @@ export default function AnuncioCliente({ id }) {
 
   const vendedor = pub.perfiles || {}
   const noDisponible = pub.estado === 'cerrada' || new Date(pub.vence_at) < new Date()
+  const fotos = fotosDe(pub)
+  const actual = Math.min(fotoActiva, Math.max(fotos.length - 1, 0))
 
   return (
-    <div className="mx-auto max-w-2xl px-4 py-6">
+    <div className="mx-auto max-w-4xl px-4 py-6">
       <a href="/" className="text-sm font-semibold text-brand hover:underline">← Volver</a>
 
-      <article className="mt-3 overflow-hidden rounded-2xl border border-gold-soft bg-white shadow-sm">
-        <div className="relative aspect-[4/3] bg-surface">
-          {pub.imagen ? (
-            <img src={pub.imagen} alt={pub.titulo} className="absolute inset-0 h-full w-full object-contain" />
+      <article className="mt-3 overflow-hidden rounded-2xl border border-gold-soft bg-white shadow-sm md:grid md:grid-cols-2 md:items-start">
+        <div>
+        <div
+          className="relative aspect-[4/3] bg-surface md:aspect-square"
+          onTouchStart={(e) => { toqueX.current = e.touches[0].clientX }}
+          onTouchEnd={(e) => {
+            if (toqueX.current === null || fotos.length < 2) return
+            const dx = e.changedTouches[0].clientX - toqueX.current
+            toqueX.current = null
+            if (dx > 50) setFotoActiva((actual - 1 + fotos.length) % fotos.length)
+            else if (dx < -50) setFotoActiva((actual + 1) % fotos.length)
+          }}
+        >
+          {fotos.length > 0 ? (
+            <img src={fotos[actual]} alt={pub.titulo} className="absolute inset-0 h-full w-full object-contain" />
           ) : (
             <div className="grid h-full place-items-center text-sm text-muted">Sin foto</div>
           )}
           <span className="absolute left-3 top-3 rounded-md bg-white/95 px-2 py-0.5 text-xs font-semibold capitalize text-brand">{pub.tipo}</span>
+
+          {fotos.length > 1 && (
+            <>
+              <button
+                onClick={() => setFotoActiva((actual - 1 + fotos.length) % fotos.length)}
+                aria-label="Foto anterior"
+                className="absolute left-2 top-1/2 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-full bg-white/90 text-xl leading-none shadow transition hover:bg-white"
+              >
+                ‹
+              </button>
+              <button
+                onClick={() => setFotoActiva((actual + 1) % fotos.length)}
+                aria-label="Foto siguiente"
+                className="absolute right-2 top-1/2 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-full bg-white/90 text-xl leading-none shadow transition hover:bg-white"
+              >
+                ›
+              </button>
+              <span className="absolute bottom-2 right-2 rounded-full bg-black/55 px-2 py-0.5 text-xs font-semibold text-white">
+                {actual + 1}/{fotos.length}
+              </span>
+            </>
+          )}
         </div>
 
-        <div className="p-5 sm:p-6">
+        {fotos.length > 1 && (
+          <div className="flex gap-2 overflow-x-auto px-5 pb-1 pt-3 sm:px-6 md:pb-4">
+            {fotos.map((src, i) => (
+              <button
+                key={src}
+                onClick={() => setFotoActiva(i)}
+                aria-label={`Ver foto ${i + 1}`}
+                className={`h-14 w-14 shrink-0 overflow-hidden rounded-lg border-2 transition ${i === actual ? 'border-brand' : 'border-transparent opacity-70 hover:opacity-100'}`}
+              >
+                <img src={src} alt="" className="h-full w-full object-cover" />
+              </button>
+            ))}
+          </div>
+        )}
+
+        </div>
+
+        <div className="p-5 sm:p-6 md:p-8">
           {noDisponible && (
             <p className="mb-4 rounded-lg bg-surface p-3 text-sm font-medium text-muted">
               Este anuncio ya no está disponible.

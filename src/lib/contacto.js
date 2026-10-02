@@ -33,3 +33,15 @@ export function rutaEnStorage(url) {
   const partes = url.split('/imagenes/')
   return partes.length > 1 ? decodeURIComponent(partes[1].split('?')[0]) : null
 }
+
+// Lista de fotos de un anuncio. Los anuncios viejos solo tienen "imagen".
+export function fotosDe(pub) {
+  const lista = Array.isArray(pub?.imagenes) ? pub.imagenes.filter(Boolean) : []
+  if (lista.length) return lista
+  return pub?.imagen ? [pub.imagen] : []
+}
+
+// Rutas en Storage de todas las fotos del anuncio (para borrarlas)
+export function rutasEnStorage(pub) {
+  return fotosDe(pub).map(rutaEnStorage).filter(Boolean)
+}

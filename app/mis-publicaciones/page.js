@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { supabase } from '../../src/lib/supabase'
-import { rutaEnStorage, precioTexto } from '../../src/lib/contacto'
+import { rutasEnStorage, precioTexto } from '../../src/lib/contacto'
 
 const DIA = 24 * 60 * 60 * 1000
 
@@ -79,9 +79,9 @@ export default function MisPublicaciones() {
       return
     }
 
-    // Borra tambien la foto para no dejar archivos huerfanos
-    const ruta = rutaEnStorage(pub.imagen)
-    if (ruta) await supabase.storage.from('imagenes').remove([ruta])
+    // Borra tambien todas las fotos para no dejar archivos huerfanos
+    const rutas = rutasEnStorage(pub)
+    if (rutas.length) await supabase.storage.from('imagenes').remove(rutas)
 
     setPublicaciones((lista) => lista.filter((p) => p.id !== pub.id))
     setTrabajandoId(null)
