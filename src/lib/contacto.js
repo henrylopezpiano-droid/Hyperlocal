@@ -2,18 +2,25 @@
 // Para cambiar el nombre de la app en los mensajes y en la vista previa, edita solo esta línea.
 export const NOMBRE_APP = 'Mercado Hiperlocal'
 
+// WhatsApp necesita el indicativo del país. Si un celular colombiano de 10 dígitos
+// (empieza por 3) llega sin el 57, se lo agregamos para que el enlace no falle.
+export function normalizarCelular(valor) {
+  const d = String(valor || '').replace(/\D/g, '')
+  return d.length === 10 && d.startsWith('3') ? '57' + d : d
+}
+
 // El teléfono vive en la tabla "contactos" y solo llega a vecinos verificados.
 export function telefonoDe(perfil) {
   const c = perfil?.contactos
   const t = Array.isArray(c) ? c[0]?.telefono : c?.telefono
-  return t ? String(t).replace(/\D/g, '') : ''
+  return t ? normalizarCelular(t) : ''
 }
 
 export function enlaceWhatsApp(tel, nombre, titulo) {
   const texto = encodeURIComponent(
     `Hola ${nombre || 'vecino'}, vi tu publicación "${titulo}" en ${NOMBRE_APP} y me interesa.`
   )
-  return `https://wa.me/${tel}?text=${texto}`
+  return `https://wa.me/${normalizarCelular(tel)}?text=${texto}`
 }
 
 export function precioTexto(precio) {
