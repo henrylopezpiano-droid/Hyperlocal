@@ -1,7 +1,11 @@
 'use client'
 import { useState, useEffect, useMemo } from 'react'
+import Link from 'next/link'
 import { supabase } from '../src/lib/supabase'
 import { CATEGORIAS } from '../src/lib/categorias'
+import { precioTexto } from '../src/lib/contacto'
+import BotonContacto from './components/BotonContacto'
+import ReportarModal from './components/ReportarModal'
 
 const TIPOS = [
   { valor: 'todos', etiqueta: 'Todos' },
@@ -21,10 +25,20 @@ function Check() {
   )
 }
 
+function Bandera() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M4 22V4M4 4h13l-2.5 4L17 12H4" />
+    </svg>
+  )
+}
+
 export default function Home() {
   const [publicaciones, setPublicaciones] = useState([])
   const [barrios, setBarrios] = useState([])
   const [sesion, setSesion] = useState(false)
+  const [miVerificado, setMiVerificado] = useState(false)
+  const [reportando, setReportando] = useState(null)
   const [filtroTipo, setFiltroTipo] = useState('todos')
   const [filtroCategoria, setFiltroCategoria] = useState('todas')
   const [filtroMunicipio, setFiltroMunicipio] = useState('')
@@ -36,18 +50,23 @@ export default function Home() {
   useEffect(() => {
     async function obtener() {
       const { data: { session } } = await supabase.auth.getSession()
-      const conSesion = !!session
-      setSesion(conSesion)
+      setSesion(!!session)
+      if (session) {
+        const { data: yo } = await supabase.from('perfiles').select('verificado').eq('id', session.user.id).maybeSingle()
+        setMiVerificado(!!yo?.verificado)
+      }
 
-      // Sin sesión no se pide el teléfono
-      const columnas = conSesion
-        ? 'nombre, telefono, barrio, municipio, verificado'
+      // El teléfono solo se pide con sesión; la base de datos lo entrega únicamente a vecinos verificados
+      const columnas = session
+        ? 'nombre, barrio, municipio, verificado, contactos (telefono)'
         : 'nombre, barrio, municipio, verificado'
 
       const [pubs, lista] = await Promise.all([
         supabase
           .from('publicaciones')
           .select(`*, perfiles (${columnas})`)
+          .eq('estado', 'activa')
+          .gt('vence_at', new Date().toISOString())
           .order('created_at', { ascending: false }),
         supabase.from('barrios').select('municipio, nombre').order('nombre'),
       ])
@@ -80,6 +99,14 @@ export default function Home() {
     setFiltroBarrio('')
     setSoloGratis(false)
     setBusqueda('')
+  }
+
+  function reportar(pub) {
+    if (!sesion) {
+      window.location.href = '/login?volver=/'
+      return
+    }
+    setReportando(pub)
   }
 
   const filtradas = publicaciones.filter((pub) => {
@@ -189,28 +216,33 @@ export default function Home() {
         <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
           {filtradas.map((pub) => {
             const vendedor = pub.perfiles || {}
-            const tel = vendedor.telefono ? vendedor.telefono.replace(/\D/g, '') : ''
-            const mensaje = encodeURIComponent(
-              `Hola ${vendedor.nombre || 'vecino'}, vi tu publicación "${pub.titulo}" en el Mercado Hiperlocal y me interesa.`
-            )
             return (
-              <article
-                key={pub.id}
-                className="flex flex-col overflow-hidden rounded-xl border border-gold-soft bg-white transition hover:border-gold hover:shadow-md"
-              >
+              <article key={pub.id} className="flex flex-col overflow-hidden rounded-xl border border-gold-soft bg-white transition hover:border-gold hover:shadow-md">
                 <div className="relative aspect-[4/3] overflow-hidden bg-surface">
-                  {pub.imagen ? (
-                    <img src={pub.imagen} alt={pub.titulo} className="absolute inset-0 h-full w-full object-cover" />
-                  ) : (
-                    <div className="grid h-full place-items-center text-xs text-muted">Sin foto</div>
-                  )}
-                  <span className="absolute left-2 top-2 z-10 rounded-md bg-white/95 px-2 py-0.5 text-xs font-semibold capitalize text-brand">
+                  <Link href={`/anuncio/${pub.id}`} className="absolute inset-0 block" aria-label={`Ver ${pub.titulo}`}>
+                    {pub.imagen ? (
+                      <img src={pub.imagen} alt={pub.titulo} className="h-full w-full object-cover" />
+                    ) : (
+                      <div className="grid h-full place-items-center text-xs text-muted">Sin foto</div>
+                    )}
+                  </Link>
+                  <span className="pointer-events-none absolute left-2 top-2 z-10 rounded-md bg-white/95 px-2 py-0.5 text-xs font-semibold capitalize text-brand">
                     {pub.tipo}
                   </span>
+                  <button
+                    onClick={() => reportar(pub)}
+                    aria-label="Reportar anuncio"
+                    title="Reportar anuncio"
+                    className="absolute right-2 top-2 z-10 grid h-7 w-7 place-items-center rounded-full bg-white/95 text-muted transition hover:text-red-600"
+                  >
+                    <Bandera />
+                  </button>
                 </div>
 
                 <div className="flex flex-1 flex-col p-3">
-                  <h3 className="line-clamp-2 text-sm font-bold sm:line-clamp-1">{pub.titulo}</h3>
+                  <Link href={`/anuncio/${pub.id}`} className="hover:underline">
+                    <h3 className="line-clamp-2 text-sm font-bold sm:line-clamp-1">{pub.titulo}</h3>
+                  </Link>
                   <p className="mt-0.5 line-clamp-2 text-xs leading-relaxed text-muted">{pub.descripcion}</p>
 
                   {pub.precio === 0 ? (
@@ -218,7 +250,7 @@ export default function Home() {
                       <span className="rounded-md bg-gold-bg px-2 py-0.5 text-sm font-extrabold text-gold-ink">Gratis</span>
                     </p>
                   ) : (
-                    <p className="mt-2 text-base font-extrabold text-brand">${pub.precio?.toLocaleString('es-CO')}</p>
+                    <p className="mt-2 text-base font-extrabold text-brand">{precioTexto(pub.precio)}</p>
                   )}
 
                   <p className="mb-3 mt-0.5 flex flex-col text-xs text-muted sm:flex-row sm:items-center sm:gap-1">
@@ -232,28 +264,22 @@ export default function Home() {
                     </span>
                   </p>
 
-                  {!sesion ? (
-                    <a href="/login?volver=/" className="mt-auto rounded-lg border border-brand bg-white py-2 text-center text-xs font-semibold text-brand transition hover:bg-brand-soft">
-                      Ingresa para contactar
-                    </a>
-                  ) : tel ? (
-                    <a
-                      href={`https://wa.me/${tel}?text=${mensaje}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="mt-auto rounded-lg bg-brand py-2 text-center text-xs font-semibold text-white transition hover:bg-brand-dark"
-                    >
-                      Escribir por WhatsApp
-                    </a>
-                  ) : (
-                    <span className="mt-auto rounded-lg bg-surface py-2 text-center text-xs text-muted">Sin WhatsApp</span>
-                  )}
+                  <BotonContacto
+                    sesion={sesion}
+                    verificado={miVerificado}
+                    vendedor={vendedor}
+                    titulo={pub.titulo}
+                    volver="/"
+                    clase="mt-auto"
+                  />
                 </div>
               </article>
             )
           })}
         </div>
       )}
+
+      {reportando && <ReportarModal publicacion={reportando} onClose={() => setReportando(null)} />}
 
       <footer className="mt-12 border-t border-line pt-6 text-center text-xs text-muted">
         <a href="/privacidad" className="hover:text-ink hover:underline">Política de privacidad</a>
