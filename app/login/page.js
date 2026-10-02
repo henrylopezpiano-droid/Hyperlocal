@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '../../src/lib/supabase'
+import CampoClave from '../components/CampoClave'
 
 // Devuelve el telefono con indicativo de Colombia (57) o null si es invalido
 function normalizarTelefono(valor) {
@@ -23,6 +24,7 @@ export default function LoginPage() {
   const [registrando, setRegistrando] = useState(false)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [password2, setPassword2] = useState('')
   const [nombre, setNombre] = useState('')
   const [telefono, setTelefono] = useState('')
   const [municipio, setMunicipio] = useState('')
@@ -56,6 +58,12 @@ export default function LoginPage() {
     setError(esError)
   }
 
+  function textoErrorAuth(err) {
+    const limite = err.status === 429 || /rate limit/i.test(err.message)
+    if (limite) return 'Se hicieron demasiados intentos. Espera unos minutos y vuelve a intentarlo.'
+    return null
+  }
+
   async function handleAuth(e) {
     e.preventDefault()
     setEnviando(true)
@@ -70,6 +78,11 @@ export default function LoginPage() {
       }
       if (!municipio || !barrio) {
         avisar('Elige tu municipio y tu barrio.', true)
+        setEnviando(false)
+        return
+      }
+      if (password !== password2) {
+        avisar('Las contraseñas no coinciden.', true)
         setEnviando(false)
         return
       }
@@ -97,7 +110,7 @@ export default function LoginPage() {
       })
 
       if (authError) {
-        avisar('Error al registrar: ' + authError.message, true)
+        avisar(textoErrorAuth(authError) || 'Error al registrar: ' + authError.message, true)
       } else if (data.session) {
         avisar('¡Cuenta creada! Un administrador debe verificarte antes de que puedas publicar.')
         setTimeout(() => (window.location.href = destino()), 1500)
@@ -108,7 +121,7 @@ export default function LoginPage() {
     } else {
       const { error: loginError } = await supabase.auth.signInWithPassword({ email, password })
       if (loginError) {
-        avisar('Correo o contraseña incorrectos.', true)
+        avisar(textoErrorAuth(loginError) || 'Correo o contraseña incorrectos.', true)
       } else {
         window.location.href = destino()
         return
@@ -182,13 +195,39 @@ export default function LoginPage() {
 
           <div>
             <label className="mb-1 block text-sm font-medium">Correo electrónico</label>
-            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required className={campo} />
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              autoComplete="email"
+              className={campo}
+            />
           </div>
 
-          <div>
-            <label className="mb-1 block text-sm font-medium">Contraseña</label>
-            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={6} className={campo} />
-          </div>
+          <CampoClave
+            etiqueta="Contraseña"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            autoComplete={registrando ? 'new-password' : 'current-password'}
+            minLength={registrando ? 6 : undefined}
+          />
+
+          {registrando ? (
+            <CampoClave
+              etiqueta="Confirmar contraseña"
+              value={password2}
+              onChange={(e) => setPassword2(e.target.value)}
+              autoComplete="new-password"
+              minLength={6}
+            />
+          ) : (
+            <div className="-mt-2 text-right">
+              <a href="/recuperar" className="text-xs font-semibold text-brand hover:underline">
+                ¿Olvidaste tu contraseña?
+              </a>
+            </div>
+          )}
 
           {registrando && (
             <label className="flex cursor-pointer items-start gap-2 text-xs leading-relaxed text-muted">
@@ -231,7 +270,7 @@ export default function LoginPage() {
         <div className="mt-5 text-center">
           <button
             type="button"
-            onClick={() => { setRegistrando(!registrando); setMensaje('') }}
+            onClick={() => { setRegistrando(!registrando); setMensaje(''); setPassword2('') }}
             className="text-sm font-semibold text-brand hover:underline"
           >
             {registrando ? '¿Ya tienes cuenta? Inicia sesión' : '¿No tienes cuenta? Regístrate'}

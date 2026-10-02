@@ -11,9 +11,11 @@ function formatearCelular(tel) {
 
 export default function AdminPage() {
   const [estado, setEstado] = useState('cargando') // cargando | sinAcceso | ok
+  const [miId, setMiId] = useState(null)
   const [perfiles, setPerfiles] = useState([])
   const [reportes, setReportes] = useState([])
   const [pestana, setPestana] = useState('pendientes')
+  const [busqueda, setBusqueda] = useState('')
   const [procesandoId, setProcesandoId] = useState(null)
   const [aviso, setAviso] = useState('')
   const [esError, setEsError] = useState(false)
@@ -25,6 +27,7 @@ export default function AdminPage() {
         window.location.href = '/login?volver=/admin'
         return
       }
+      setMiId(user.id)
 
       // Solo los administradores aparecen en esta tabla
       const { data: admin } = await supabase.from('admins').select('user_id').eq('user_id', user.id).maybeSingle()
@@ -55,7 +58,17 @@ export default function AdminPage() {
 
   const pendientes = useMemo(() => perfiles.filter((p) => !p.verificado), [perfiles])
   const verificados = useMemo(() => perfiles.filter((p) => p.verificado), [perfiles])
-  const lista = pestana === 'pendientes' ? pendientes : verificados
+
+  const base = pestana === 'pendientes' ? pendientes : pestana === 'verificados' ? verificados : perfiles
+  const q = busqueda.trim().toLowerCase()
+  const qDigitos = q.replace(/\D/g, '')
+  const lista = !q
+    ? base
+    : base.filter((p) => {
+        const enTexto = [p.nombre, p.barrio, p.municipio].some((v) => (v || '').toLowerCase().includes(q))
+        const enCelular = qDigitos && (telefonoDe(p) || '').replace(/\D/g, '').includes(qDigitos)
+        return enTexto || enCelular
+      })
 
   function avisar(texto, error = false) {
     setAviso(texto)
@@ -75,6 +88,36 @@ export default function AdminPage() {
       setPerfiles((prev) => prev.map((p) => (p.id === perfil.id ? { ...p, verificado: valor } : p)))
       avisar(valor ? `${perfil.nombre} ya es vecino verificado.` : `Se quitó la verificación a ${perfil.nombre}.`)
     }
+    setProcesandoId(null)
+  }
+
+  async function eliminarUsuario(perfil) {
+    const respuesta = window.prompt(
+      `Vas a eliminar a ${perfil.nombre || 'este usuario'}, con todos sus anuncios y sus datos. Esto no se puede deshacer.\n\nEscribe ELIMINAR para confirmar.`
+    )
+    if (!respuesta || respuesta.trim().toUpperCase() !== 'ELIMINAR') return
+
+    setProcesandoId(perfil.id)
+    setAviso('')
+
+    // Antes de borrar, guardamos cuáles eran sus anuncios y fotos
+    const { data: anuncios } = await supabase.from('publicaciones').select('id, imagen').eq('user_id', perfil.id)
+
+    const { error } = await supabase.rpc('admin_eliminar_usuario', { p_user_id: perfil.id })
+    if (error) {
+      avisar('No se pudo eliminar: ' + error.message, true)
+      setProcesandoId(null)
+      return
+    }
+
+    // Borra las fotos para no dejar archivos huérfanos
+    const rutas = (anuncios || []).map((a) => rutaEnStorage(a.imagen)).filter(Boolean)
+    if (rutas.length > 0) await supabase.storage.from('imagenes').remove(rutas)
+
+    const idsAnuncios = new Set((anuncios || []).map((a) => a.id))
+    setPerfiles((prev) => prev.filter((p) => p.id !== perfil.id))
+    setReportes((prev) => prev.filter((r) => !idsAnuncios.has(r.publicaciones?.id)))
+    avisar(`Se eliminó a ${perfil.nombre || 'el usuario'} y todos sus datos.`)
     setProcesandoId(null)
   }
 
@@ -126,6 +169,7 @@ export default function AdminPage() {
   const pestanas = [
     { id: 'pendientes', etiqueta: `Pendientes (${pendientes.length})` },
     { id: 'verificados', etiqueta: `Verificados (${verificados.length})` },
+    { id: 'todos', etiqueta: `Todos (${perfiles.length})` },
     { id: 'reportes', etiqueta: `Reportes (${reportes.length})` },
   ]
 
@@ -133,7 +177,7 @@ export default function AdminPage() {
     <div className="mx-auto max-w-3xl px-4 py-8">
       <h1 className="text-2xl font-extrabold tracking-tight">Administración</h1>
       <p className="mb-5 mt-1 text-sm text-muted">
-        Verifica vecinos escribiéndoles por WhatsApp y revisa los anuncios reportados.
+        Verifica vecinos escribiéndoles por WhatsApp, revisa los anuncios reportados y administra las cuentas.
       </p>
 
       <div className="mb-4 flex flex-wrap gap-2">
@@ -149,6 +193,16 @@ export default function AdminPage() {
           </button>
         ))}
       </div>
+
+      {pestana !== 'reportes' && (
+        <input
+          type="search"
+          value={busqueda}
+          onChange={(e) => setBusqueda(e.target.value)}
+          placeholder="Buscar por nombre, barrio o celular..."
+          className="mb-4 h-10 w-full rounded-lg border border-line bg-white px-3 text-sm focus:border-brand focus:outline-none"
+        />
+      )}
 
       {aviso && (
         <p className={`mb-4 rounded-lg p-3 text-sm ${esError ? 'bg-red-50 text-red-700' : 'bg-brand-soft text-brand-dark'}`}>{aviso}</p>
@@ -192,7 +246,13 @@ export default function AdminPage() {
         )
       ) : lista.length === 0 ? (
         <div className="rounded-2xl border border-line bg-white p-8 text-center text-sm text-muted">
-          {pestana === 'pendientes' ? 'No hay vecinos pendientes por verificar.' : 'Todavía no hay vecinos verificados.'}
+          {q
+            ? 'Ningún vecino coincide con la búsqueda.'
+            : pestana === 'pendientes'
+              ? 'No hay vecinos pendientes por verificar.'
+              : pestana === 'verificados'
+                ? 'Todavía no hay vecinos verificados.'
+                : 'Todavía no hay vecinos registrados.'}
         </div>
       ) : (
         <ul className="space-y-3">
@@ -205,7 +265,14 @@ export default function AdminPage() {
               <li key={p.id} className="rounded-2xl border border-line bg-white p-4 shadow-sm">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div className="min-w-0">
-                    <p className="truncate font-bold">{p.nombre || 'Sin nombre'}</p>
+                    <p className="truncate font-bold">
+                      {p.nombre || 'Sin nombre'}
+                      {p.verificado && (
+                        <span className="ml-2 rounded-md bg-brand-soft px-2 py-0.5 align-middle text-xs font-semibold text-brand">
+                          Verificado
+                        </span>
+                      )}
+                    </p>
                     <p className="text-sm text-muted">
                       {p.barrio || 'Sin barrio'}
                       {p.municipio ? ` · ${p.municipio}` : ''}
@@ -229,6 +296,11 @@ export default function AdminPage() {
                     ) : (
                       <button onClick={() => cambiarVerificacion(p, true)} disabled={procesandoId === p.id} className="h-10 rounded-lg bg-brand px-4 text-sm font-semibold text-white transition hover:bg-brand-dark disabled:opacity-60">
                         {procesandoId === p.id ? 'Guardando...' : 'Verificar'}
+                      </button>
+                    )}
+                    {p.id !== miId && (
+                      <button onClick={() => eliminarUsuario(p)} disabled={procesandoId === p.id} className="h-10 rounded-lg border border-red-200 px-3 text-sm font-semibold text-red-600 transition hover:bg-red-50 disabled:opacity-60">
+                        Eliminar usuario
                       </button>
                     )}
                   </div>
