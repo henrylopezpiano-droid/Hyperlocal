@@ -10,7 +10,7 @@ const TIPOS = [
 ]
 
 const selectClase =
-  'h-10 rounded-lg border border-line bg-white px-3 text-sm focus:border-brand focus:outline-none disabled:bg-surface disabled:text-muted'
+  'h-10 min-w-0 text-ellipsis rounded-lg border border-line bg-white px-3 text-sm focus:border-brand focus:outline-none disabled:bg-surface disabled:text-muted'
 
 function Check() {
   return (
@@ -112,12 +112,12 @@ export default function Home() {
             placeholder="Buscar..."
             className="h-10 w-full rounded-lg border border-line bg-white px-3 text-sm focus:border-brand focus:outline-none sm:max-w-xs"
           />
-          <div className="flex gap-1.5 overflow-x-auto">
+          <div className="flex gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {TIPOS.map((t) => (
               <button
                 key={t.valor}
                 onClick={() => setFiltroTipo(t.valor)}
-                className={`h-10 whitespace-nowrap rounded-lg px-4 text-sm font-medium transition ${
+                className={`h-10 whitespace-nowrap rounded-lg px-2.5 text-[13px] font-medium transition sm:px-4 sm:text-sm ${
                   filtroTipo === t.valor ? 'bg-brand text-white' : 'border border-line bg-white text-muted hover:text-ink'
                 }`}
               >
@@ -126,7 +126,7 @@ export default function Home() {
             ))}
             <button
               onClick={() => setSoloGratis(!soloGratis)}
-              className={`h-10 whitespace-nowrap rounded-lg border px-4 text-sm font-medium transition ${
+              className={`h-10 whitespace-nowrap rounded-lg border px-2.5 text-[13px] font-medium transition sm:px-4 sm:text-sm ${
                 soloGratis ? 'border-gold bg-gold-bg text-gold-ink' : 'border-line bg-white text-muted hover:text-ink'
               }`}
             >
@@ -141,7 +141,7 @@ export default function Home() {
             onChange={(e) => { setFiltroMunicipio(e.target.value); setFiltroBarrio('') }}
             className={selectClase}
           >
-            <option value="">Todos los municipios</option>
+            <option value="">Municipio</option>
             {municipios.map((m) => <option key={m} value={m}>{m}</option>)}
           </select>
 
@@ -151,7 +151,7 @@ export default function Home() {
             disabled={!filtroMunicipio}
             className={selectClase}
           >
-            <option value="">{filtroMunicipio ? 'Todos los barrios' : 'Elige municipio'}</option>
+            <option value="">{filtroMunicipio ? 'Barrio' : 'Elige municipio'}</option>
             {barriosDelMunicipio.map((b) => <option key={b.nombre} value={b.nombre}>{b.nombre}</option>)}
           </select>
 
@@ -210,7 +210,7 @@ export default function Home() {
                 </div>
 
                 <div className="flex flex-1 flex-col p-3">
-                  <h3 className="line-clamp-1 text-sm font-bold">{pub.titulo}</h3>
+                  <h3 className="line-clamp-2 text-sm font-bold sm:line-clamp-1">{pub.titulo}</h3>
                   <p className="mt-0.5 line-clamp-2 text-xs leading-relaxed text-muted">{pub.descripcion}</p>
 
                   {pub.precio === 0 ? (
@@ -221,10 +221,15 @@ export default function Home() {
                     <p className="mt-2 text-base font-extrabold text-brand">${pub.precio?.toLocaleString('es-CO')}</p>
                   )}
 
-                  <p className="mb-3 mt-0.5 flex items-center gap-1 text-xs text-muted">
-                    <span className="truncate">{vendedor.nombre || 'Vecino'}</span>
-                    {vendedor.verificado && <Check />}
-                    <span className="truncate">· {pub.barrio || vendedor.barrio || 'Zona'}</span>
+                  <p className="mb-3 mt-0.5 flex flex-col text-xs text-muted sm:flex-row sm:items-center sm:gap-1">
+                    <span className="flex min-w-0 items-center gap-1">
+                      <span className="truncate">{vendedor.nombre || 'Vecino'}</span>
+                      {vendedor.verificado && <Check />}
+                    </span>
+                    <span className="truncate">
+                      <span className="hidden sm:inline">· </span>
+                      {pub.barrio || vendedor.barrio || 'Zona'}
+                    </span>
                   </p>
 
                   {!sesion ? (
