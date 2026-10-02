@@ -145,11 +145,11 @@ export default function AnuncioCliente({ id }) {
               href={`https://wa.me/?text=${encodeURIComponent(textoCompartir())}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="h-10 rounded-lg border border-line text-center text-sm font-semibold leading-10 text-ink transition hover:bg-surface"
+              className="flex min-h-10 items-center justify-center rounded-lg border border-line px-2 text-center text-sm font-semibold text-ink transition hover:bg-surface"
             >
-              Compartir por WhatsApp
+              Compartir
             </a>
-            <button onClick={copiar} className="h-10 rounded-lg border border-line text-sm font-semibold text-ink transition hover:bg-surface">
+            <button onClick={copiar} className="flex min-h-10 items-center justify-center rounded-lg border border-line px-2 text-sm font-semibold text-ink transition hover:bg-surface">
               {copiado ? '¡Enlace copiado!' : 'Copiar enlace'}
             </button>
           </div>
