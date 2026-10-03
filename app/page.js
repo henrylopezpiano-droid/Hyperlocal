@@ -14,7 +14,29 @@ const TIPOS = [
 ]
 
 const selectClase =
-  'h-10 min-w-0 text-ellipsis rounded-lg border border-line bg-white px-3 text-sm focus:border-brand focus:outline-none disabled:bg-surface disabled:text-muted'
+  'h-11 w-full min-w-0 text-ellipsis rounded-lg border border-line bg-white px-3 text-sm focus:border-brand focus:outline-none disabled:bg-surface disabled:text-muted md:h-10 md:w-auto'
+
+function Etiqueta({ texto, onQuitar }) {
+  return (
+    <span className="inline-flex h-8 items-center gap-1 rounded-lg border border-brand/30 bg-brand-soft pl-2.5 pr-1 text-xs font-semibold text-brand-dark">
+      {texto}
+      <button type="button" onClick={onQuitar} aria-label={`Quitar ${texto}`} className="grid h-6 w-6 place-items-center rounded-full text-sm leading-none hover:bg-white/70">
+        ×
+      </button>
+    </span>
+  )
+}
+
+function IconoFiltros() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M4 6h8m4 0h4M4 12h2m4 0h10M4 18h10m4 0h2" />
+      <circle cx="14" cy="6" r="2" />
+      <circle cx="8" cy="12" r="2" />
+      <circle cx="16" cy="18" r="2" />
+    </svg>
+  )
+}
 
 function Check() {
   return (
@@ -46,6 +68,20 @@ export default function Home() {
   const [soloGratis, setSoloGratis] = useState(false)
   const [busqueda, setBusqueda] = useState('')
   const [cargando, setCargando] = useState(true)
+  const [abierto, setAbierto] = useState(false) // panel de filtros (celular)
+
+  // Con el panel abierto: Escape lo cierra y la página de atrás no se desplaza
+  useEffect(() => {
+    if (!abierto) return
+    const tecla = (e) => e.key === 'Escape' && setAbierto(false)
+    document.addEventListener('keydown', tecla)
+    const previo = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.removeEventListener('keydown', tecla)
+      document.body.style.overflow = previo
+    }
+  }, [abierto])
 
   useEffect(() => {
     async function obtener() {
@@ -101,6 +137,15 @@ export default function Home() {
     setBusqueda('')
   }
 
+  const nPanel = (filtroMunicipio ? 1 : 0) + (filtroBarrio ? 1 : 0) + (filtroCategoria !== 'todas' ? 1 : 0)
+  const etiquetaCategoria = CATEGORIAS.find((c) => c.valor === filtroCategoria)?.etiqueta || filtroCategoria
+
+  function limpiarPanel() {
+    setFiltroMunicipio('')
+    setFiltroBarrio('')
+    setFiltroCategoria('todas')
+  }
+
   function reportar(pub) {
     if (!sesion) {
       window.location.href = '/login?volver=/'
@@ -130,73 +175,140 @@ export default function Home() {
         <p className="mt-1 text-sm text-muted">Contacta directo por WhatsApp. Sin comisiones.</p>
       </section>
 
-      <section className="mb-6 space-y-3">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-          <input
-            type="search"
-            value={busqueda}
-            onChange={(e) => setBusqueda(e.target.value)}
-            placeholder="Buscar..."
-            className="h-10 w-full rounded-lg border border-line bg-white px-3 text-sm focus:border-brand focus:outline-none sm:max-w-xs"
-          />
-          <div className="flex gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            {TIPOS.map((t) => (
-              <button
-                key={t.valor}
-                onClick={() => setFiltroTipo(t.valor)}
-                className={`h-10 whitespace-nowrap rounded-lg px-2.5 text-[13px] font-medium transition sm:px-4 sm:text-sm ${
-                  filtroTipo === t.valor ? 'bg-brand text-white' : 'border border-line bg-white text-muted hover:text-ink'
-                }`}
-              >
-                {t.etiqueta}
-              </button>
-            ))}
+      {abierto && <div className="fixed inset-0 z-40 bg-black/40 md:hidden" onClick={() => setAbierto(false)} />}
+
+      <section className="mb-6 flex flex-col gap-3 md:flex-row md:flex-wrap md:items-center">
+        <input
+          type="search"
+          value={busqueda}
+          onChange={(e) => setBusqueda(e.target.value)}
+          placeholder="Buscar..."
+          className="h-10 w-full rounded-lg border border-line bg-white px-3 text-sm focus:border-brand focus:outline-none md:max-w-xs"
+        />
+
+        <div role="radiogroup" aria-label="Tipo de anuncio" className="flex h-10 w-full overflow-hidden rounded-lg border border-line bg-white md:w-auto">
+          {TIPOS.map((t, i) => (
             <button
-              onClick={() => setSoloGratis(!soloGratis)}
-              className={`h-10 whitespace-nowrap rounded-lg border px-2.5 text-[13px] font-medium transition sm:px-4 sm:text-sm ${
-                soloGratis ? 'border-gold bg-gold-bg text-gold-ink' : 'border-line bg-white text-muted hover:text-ink'
+              key={t.valor}
+              type="button"
+              role="radio"
+              aria-checked={filtroTipo === t.valor}
+              onClick={() => setFiltroTipo(t.valor)}
+              className={`flex-1 px-3 text-[13px] font-medium transition sm:text-sm md:flex-none md:px-4 ${i > 0 ? 'border-l border-line' : ''} ${
+                filtroTipo === t.valor ? 'bg-brand text-white' : 'text-muted hover:text-ink'
               }`}
             >
-              Gratis
+              {t.etiqueta}
+            </button>
+          ))}
+        </div>
+
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={() => setAbierto(true)}
+            className={`inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-lg border bg-white px-3 text-[13px] font-medium transition md:hidden ${
+              nPanel > 0 ? 'border-brand text-brand' : 'border-line text-ink'
+            }`}
+          >
+            <IconoFiltros />
+            Filtros{nPanel > 0 ? ` · ${nPanel}` : ''}
+          </button>
+
+          <button
+            type="button"
+            role="switch"
+            aria-checked={soloGratis}
+            onClick={() => setSoloGratis(!soloGratis)}
+            className={`inline-flex h-10 items-center gap-2 rounded-lg border px-3 text-[13px] font-medium transition sm:text-sm ${
+              soloGratis ? 'border-gold bg-gold-bg text-gold-ink' : 'border-line bg-white text-muted hover:text-ink'
+            }`}
+          >
+            Gratis
+            <span className={`relative h-4 w-7 rounded-full transition ${soloGratis ? 'bg-gold' : 'bg-line'}`}>
+              <span className={`absolute top-0.5 h-3 w-3 rounded-full bg-white transition-all ${soloGratis ? 'left-3.5' : 'left-0.5'}`} />
+            </span>
+          </button>
+        </div>
+
+        <div
+          className={`${abierto
+      ? 'fixed inset-x-0 bottom-0 z-50 flex max-h-[85vh] flex-col gap-3 overflow-y-auto rounded-t-2xl bg-white p-4 pb-6 shadow-2xl'
+      : 'hidden'} md:static md:z-auto md:flex md:max-h-none md:flex-row md:flex-wrap md:items-center md:gap-2 md:overflow-visible md:rounded-none md:bg-transparent md:p-0 md:shadow-none`}
+        >
+          <div className="flex items-center justify-between md:hidden">
+            <h2 className="text-base font-extrabold">Filtros</h2>
+            <button type="button" onClick={() => setAbierto(false)} aria-label="Cerrar filtros" className="grid h-9 w-9 place-items-center rounded-full text-xl leading-none text-muted hover:bg-surface">
+              ×
+            </button>
+          </div>
+
+          <div className="md:contents">
+            <label htmlFor="f-municipio" className="mb-1 block text-sm font-medium md:sr-only">Municipio</label>
+            <select
+              id="f-municipio"
+              value={filtroMunicipio}
+              onChange={(e) => { setFiltroMunicipio(e.target.value); setFiltroBarrio('') }}
+              className={selectClase}
+            >
+              <option value="">Todos los municipios</option>
+              {municipios.map((m) => <option key={m} value={m}>{m}</option>)}
+            </select>
+          </div>
+
+          <div className="md:contents">
+            <label htmlFor="f-barrio" className="mb-1 block text-sm font-medium md:sr-only">Barrio</label>
+            <select
+              id="f-barrio"
+              value={filtroBarrio}
+              onChange={(e) => setFiltroBarrio(e.target.value)}
+              disabled={!filtroMunicipio}
+              className={selectClase}
+            >
+              <option value="">{filtroMunicipio ? 'Todos los barrios' : 'Primero elige municipio'}</option>
+              {barriosDelMunicipio.map((b) => <option key={b.nombre} value={b.nombre}>{b.nombre}</option>)}
+            </select>
+          </div>
+
+          <div className="md:contents">
+            <label htmlFor="f-categoria" className="mb-1 block text-sm font-medium md:sr-only">Categoría</label>
+            <select
+              id="f-categoria"
+              value={filtroCategoria}
+              onChange={(e) => setFiltroCategoria(e.target.value)}
+              className={selectClase}
+            >
+              <option value="todas">Todas las categorías</option>
+              {CATEGORIAS.map((c) => <option key={c.valor} value={c.valor}>{c.etiqueta}</option>)}
+            </select>
+          </div>
+
+          {hayFiltros && (
+            <button type="button" onClick={limpiar} className="hidden h-10 items-center px-3 text-sm font-semibold text-brand hover:underline md:inline-flex">
+              Limpiar todo
+            </button>
+          )}
+
+          <div className="mt-1 flex gap-2 md:hidden">
+            <button type="button" onClick={limpiarPanel} className="h-11 flex-1 rounded-lg border border-line text-sm font-semibold text-muted">
+              Limpiar
+            </button>
+            <button type="button" onClick={() => setAbierto(false)} className="h-11 flex-[2] rounded-lg bg-brand text-sm font-semibold text-white">
+              Ver {filtradas.length} {filtradas.length === 1 ? 'resultado' : 'resultados'}
             </button>
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center">
-          <select
-            value={filtroMunicipio}
-            onChange={(e) => { setFiltroMunicipio(e.target.value); setFiltroBarrio('') }}
-            className={selectClase}
-          >
-            <option value="">Municipio</option>
-            {municipios.map((m) => <option key={m} value={m}>{m}</option>)}
-          </select>
-
-          <select
-            value={filtroBarrio}
-            onChange={(e) => setFiltroBarrio(e.target.value)}
-            disabled={!filtroMunicipio}
-            className={selectClase}
-          >
-            <option value="">{filtroMunicipio ? 'Barrio' : 'Elige municipio'}</option>
-            {barriosDelMunicipio.map((b) => <option key={b.nombre} value={b.nombre}>{b.nombre}</option>)}
-          </select>
-
-          <select
-            value={filtroCategoria}
-            onChange={(e) => setFiltroCategoria(e.target.value)}
-            className={`${selectClase} col-span-2 sm:col-span-1`}
-          >
-            <option value="todas">Todas las categorías</option>
-            {CATEGORIAS.map((c) => <option key={c.valor} value={c.valor}>{c.etiqueta}</option>)}
-          </select>
-
-          {hayFiltros && (
-            <button onClick={limpiar} className="col-span-2 h-10 rounded-lg px-3 text-sm font-semibold text-brand hover:underline sm:col-span-1">
-              Limpiar filtros
+        {hayFiltros && (
+          <div className="flex flex-wrap items-center gap-1.5 md:hidden">
+            {filtroMunicipio && <Etiqueta texto={filtroMunicipio} onQuitar={() => { setFiltroMunicipio(''); setFiltroBarrio('') }} />}
+            {filtroBarrio && <Etiqueta texto={filtroBarrio} onQuitar={() => setFiltroBarrio('')} />}
+            {filtroCategoria !== 'todas' && <Etiqueta texto={etiquetaCategoria} onQuitar={() => setFiltroCategoria('todas')} />}
+            <button type="button" onClick={limpiar} className="h-8 px-1 text-xs font-semibold text-brand hover:underline">
+              Limpiar todo
             </button>
-          )}
-        </div>
+          </div>
+        )}
       </section>
 
       {cargando ? (
@@ -218,7 +330,7 @@ export default function Home() {
             const vendedor = pub.perfiles || {}
             return (
               <article key={pub.id} className="flex flex-col overflow-hidden rounded-xl border border-gold-soft bg-white transition hover:border-gold hover:shadow-md">
-                <div className="relative aspect-[4/3] overflow-hidden bg-surface">
+                <div className="relative aspect-[3/2] overflow-hidden bg-surface sm:aspect-[4/3]">
                   <Link href={`/anuncio/${pub.id}`} className="absolute inset-0 block" aria-label={`Ver ${pub.titulo}`}>
                     {pub.imagen ? (
                       <img src={pub.imagen} alt={pub.titulo} className="h-full w-full object-cover" />
