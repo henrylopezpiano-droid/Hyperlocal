@@ -3,6 +3,8 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { supabase } from '../../src/lib/supabase'
 import { rutasEnStorage, precioTexto } from '../../src/lib/contacto'
+import { CATEGORIAS, CATEGORIA_INMUEBLES } from '../../src/lib/categorias'
+import AvisoInmueble from '../components/AvisoInmueble'
 
 const DIA = 24 * 60 * 60 * 1000
 
@@ -31,6 +33,8 @@ export default function MisPublicaciones() {
   const [cargando, setCargando] = useState(true)
   const [trabajandoId, setTrabajandoId] = useState(null)
   const [aviso, setAviso] = useState('')
+  const [editandoId, setEditandoId] = useState(null)
+  const [form, setForm] = useState({ titulo: '', descripcion: '', categoria: '', modo: 'precio', precio: '' })
 
   useEffect(() => {
     async function cargar() {
@@ -57,10 +61,43 @@ export default function MisPublicaciones() {
     const { data, error } = await supabase.from('publicaciones').update(cambios).eq('id', pub.id).select()
     if (error || !data || data.length === 0) {
       setAviso('No se pudo guardar el cambio. Intenta de nuevo.')
-    } else {
-      setPublicaciones((lista) => lista.map((p) => (p.id === pub.id ? { ...p, ...data[0] } : p)))
+      setTrabajandoId(null)
+      return false
     }
+    setPublicaciones((lista) => lista.map((p) => (p.id === pub.id ? { ...p, ...data[0] } : p)))
     setTrabajandoId(null)
+    return true
+  }
+
+  function empezarEdicion(pub) {
+    setAviso('')
+    setForm({
+      titulo: pub.titulo || '',
+      descripcion: pub.descripcion || '',
+      categoria: pub.categoria || '',
+      modo: pub.precio === 0 ? 'gratis' : pub.precio == null ? 'convenir' : 'precio',
+      precio: pub.precio ? String(pub.precio) : '',
+    })
+    setEditandoId(pub.id)
+  }
+
+  // Solo se cambian estos 4 campos: la fecha de vencimiento y el estado NO se tocan,
+  // así que editar un anuncio no reinicia ni alarga sus 30 días.
+  async function guardarEdicion(e, pub) {
+    e.preventDefault()
+    const aConvenir = form.modo === 'convenir' && pub.tipo === 'servicio'
+    const precio = form.modo === 'gratis' ? 0 : aConvenir ? null : parseInt(form.precio, 10)
+    if (form.modo !== 'gratis' && !aConvenir && (!precio || precio <= 0)) {
+      setAviso('Escribe un precio válido, o elige "Lo regalo".')
+      return
+    }
+    const ok = await actualizar(pub, {
+      titulo: form.titulo.trim(),
+      descripcion: form.descripcion.trim(),
+      categoria: form.categoria,
+      precio,
+    })
+    if (ok) setEditandoId(null)
   }
 
   const cerrar = (pub) => actualizar(pub, { estado: 'cerrada', cerrada_at: new Date().toISOString() })
@@ -144,7 +181,58 @@ export default function MisPublicaciones() {
                   </div>
                 </div>
 
+                {editandoId === pub.id && (
+                  <form onSubmit={(e) => guardarEdicion(e, pub)} className="mt-3 space-y-3 border-t border-line pt-3">
+                    <div>
+                      <label className="mb-1 block text-xs font-medium">Título</label>
+                      <input required maxLength={80} value={form.titulo} onChange={(e) => setForm({ ...form, titulo: e.target.value })} className="h-10 w-full rounded-lg border border-line bg-white px-3 text-sm focus:border-brand focus:outline-none" />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs font-medium">Categoría</label>
+                      <select required value={form.categoria} onChange={(e) => setForm({ ...form, categoria: e.target.value })} className="h-10 w-full rounded-lg border border-line bg-white px-3 text-sm focus:border-brand focus:outline-none">
+                        {!CATEGORIAS.some((c) => c.valor === form.categoria) && form.categoria && <option value={form.categoria}>{form.categoria}</option>}
+                        {CATEGORIAS.map((c) => <option key={c.valor} value={c.valor}>{c.etiqueta}</option>)}
+                      </select>
+                    </div>
+                    {form.categoria === CATEGORIA_INMUEBLES && <AvisoInmueble />}
+                    <div>
+                      <label className="mb-1 block text-xs font-medium">Precio (COP)</label>
+                      <div role="radiogroup" aria-label="Tipo de precio" className={`mb-2 grid gap-2 ${pub.tipo === 'servicio' ? 'grid-cols-3' : 'grid-cols-2'}`}>
+                        {[
+                          { valor: 'precio', etiqueta: 'Con precio' },
+                          ...(pub.tipo === 'servicio' ? [{ valor: 'convenir', etiqueta: 'A convenir' }] : []),
+                          { valor: 'gratis', etiqueta: 'Lo regalo' },
+                        ].map((o) => (
+                          <button key={o.valor} type="button" role="radio" aria-checked={form.modo === o.valor} onClick={() => setForm({ ...form, modo: o.valor })}
+                            className={`h-9 rounded-lg border text-xs font-semibold transition ${form.modo === o.valor ? (o.valor === 'gratis' ? 'border-gold bg-gold-bg text-gold-ink' : 'border-brand bg-brand-soft text-brand') : 'border-line bg-white text-muted hover:text-ink'}`}>
+                            {o.etiqueta}
+                          </button>
+                        ))}
+                      </div>
+                      {form.modo === 'precio' && (
+                        <input type="number" inputMode="numeric" min="1" required value={form.precio} onChange={(e) => setForm({ ...form, precio: e.target.value })} placeholder="Ej. 45000" className="h-10 w-full rounded-lg border border-line bg-white px-3 text-sm focus:border-brand focus:outline-none" />
+                      )}
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs font-medium">Descripción</label>
+                      <textarea required rows={3} value={form.descripcion} onChange={(e) => setForm({ ...form, descripcion: e.target.value })} className="w-full rounded-lg border border-line bg-white px-3 py-2 text-sm focus:border-brand focus:outline-none" />
+                    </div>
+                    <p className="text-xs text-muted">Editar no cambia los días que le quedan al anuncio.</p>
+                    <div className="flex gap-2">
+                      <button type="submit" disabled={ocupado} className="h-10 flex-1 rounded-lg bg-brand text-sm font-semibold text-white transition hover:bg-brand-dark disabled:opacity-60">
+                        {ocupado ? 'Guardando...' : 'Guardar cambios'}
+                      </button>
+                      <button type="button" onClick={() => setEditandoId(null)} disabled={ocupado} className="h-10 rounded-lg border border-line px-4 text-sm font-semibold text-muted hover:text-ink">
+                        Cancelar
+                      </button>
+                    </div>
+                  </form>
+                )}
+
                 <div className="mt-3 flex flex-wrap gap-2 border-t border-line pt-3">
+                  <button onClick={() => (editandoId === pub.id ? setEditandoId(null) : empezarEdicion(pub))} disabled={ocupado} className={`${boton} border-line text-ink hover:bg-surface`}>
+                    {editandoId === pub.id ? 'Cerrar edición' : 'Editar'}
+                  </button>
                   {est === 'activa' && (
                     <button onClick={() => cerrar(pub)} disabled={ocupado} className={`${boton} border-brand text-brand hover:bg-brand-soft`}>
                       {textoCierre(pub)}
