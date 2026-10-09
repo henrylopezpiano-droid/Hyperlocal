@@ -7,5 +7,9 @@ export const CATEGORIAS = [
   { valor: 'Tecnologia', etiqueta: 'Tecnología' },
   { valor: 'Belleza y Salud', etiqueta: 'Belleza y salud' },
   { valor: 'Educacion', etiqueta: 'Clases y educación' },
+  { valor: 'Inmuebles', etiqueta: 'Arriendos e inmuebles' },
   { valor: 'Otros', etiqueta: 'Otros' },
 ]
+
+// Los anuncios de esta categoría muestran un aviso contra estafas.
+export const CATEGORIA_INMUEBLES = 'Inmuebles'

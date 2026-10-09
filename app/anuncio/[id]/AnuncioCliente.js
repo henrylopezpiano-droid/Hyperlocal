@@ -4,6 +4,8 @@ import { supabase } from '../../../src/lib/supabase'
 import { NOMBRE_APP, precioTexto, fotosDe } from '../../../src/lib/contacto'
 import BotonContacto from '../../components/BotonContacto'
 import ReportarModal from '../../components/ReportarModal'
+import AvisoInmueble from '../../components/AvisoInmueble'
+import { CATEGORIA_INMUEBLES } from '../../../src/lib/categorias'
 
 function Check() {
   return (
@@ -174,10 +176,12 @@ export default function AnuncioCliente({ id }) {
           {pub.precio === 0 ? (
             <p className="mt-2"><span className="rounded-md bg-gold-bg px-2 py-0.5 text-base font-extrabold text-gold-ink">Gratis</span></p>
           ) : (
-            <p className="mt-2 text-2xl font-extrabold text-brand">{precioTexto(pub.precio)}</p>
+            <p className={`mt-2 font-extrabold text-brand ${pub.precio == null ? 'text-lg' : 'text-2xl'}`}>{precioTexto(pub.precio)}</p>
           )}
 
           <p className="mt-4 whitespace-pre-line text-sm leading-relaxed">{pub.descripcion}</p>
+
+          {pub.categoria === CATEGORIA_INMUEBLES && <AvisoInmueble clase="mt-4" />}
 
           <div className="mt-5 flex items-center gap-1.5 border-t border-line pt-4 text-sm text-muted">
             <span className="font-semibold text-ink">{vendedor.nombre || 'Vecino'}</span>

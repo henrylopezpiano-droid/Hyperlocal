@@ -23,8 +23,14 @@ export function enlaceWhatsApp(tel, nombre, titulo) {
   return `https://wa.me/${normalizarCelular(tel)}?text=${texto}`
 }
 
+// precio = 0 -> "Gratis". precio vacío (null) -> "Precio a convenir" (solo servicios).
+export function esAConvenir(pub) {
+  return pub?.precio === null || pub?.precio === undefined
+}
+
 export function precioTexto(precio) {
-  return precio === 0 ? 'Gratis' : `$${Number(precio || 0).toLocaleString('es-CO')}`
+  if (precio === null || precio === undefined) return 'Precio a convenir'
+  return precio === 0 ? 'Gratis' : `$${Number(precio).toLocaleString('es-CO')}`
 }
 
 // Saca la ruta del archivo dentro del bucket a partir de la URL pública

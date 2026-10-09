@@ -362,7 +362,7 @@ export default function Home() {
                       <span className="rounded-md bg-gold-bg px-2 py-0.5 text-sm font-extrabold text-gold-ink">Gratis</span>
                     </p>
                   ) : (
-                    <p className="mt-2 text-base font-extrabold text-brand">{precioTexto(pub.precio)}</p>
+                    <p className={`mt-2 font-extrabold text-brand ${pub.precio == null ? 'text-sm' : 'text-base'}`}>{precioTexto(pub.precio)}</p>
                   )}
 
                   <p className="mb-3 mt-0.5 flex flex-col text-xs text-muted sm:flex-row sm:items-center sm:gap-1">

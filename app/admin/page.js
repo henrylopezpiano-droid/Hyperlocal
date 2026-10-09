@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '../../src/lib/supabase'
-import { telefonoDe, rutasEnStorage } from '../../src/lib/contacto'
+import { telefonoDe, rutasEnStorage, precioTexto } from '../../src/lib/contacto'
 
 function formatearCelular(tel) {
   const d = (tel || '').replace(/\D/g, '')
@@ -14,6 +14,7 @@ export default function AdminPage() {
   const [miId, setMiId] = useState(null)
   const [perfiles, setPerfiles] = useState([])
   const [reportes, setReportes] = useState([])
+  const [anuncios, setAnuncios] = useState([])
   const [pestana, setPestana] = useState('pendientes')
   const [busqueda, setBusqueda] = useState('')
   const [procesandoId, setProcesandoId] = useState(null)
@@ -36,12 +37,16 @@ export default function AdminPage() {
         return
       }
 
-      const [perf, rep] = await Promise.all([
+      const [perf, rep, anu] = await Promise.all([
         supabase.from('perfiles').select('*, contactos (telefono)'),
         supabase
           .from('reportes')
           .select('id, motivo, detalle, created_at, publicaciones (id, titulo, imagen, imagenes)')
           .eq('resuelto', false)
+          .order('created_at', { ascending: false }),
+        supabase
+          .from('publicaciones')
+          .select('id, titulo, tipo, categoria, precio, estado, vence_at, created_at, barrio, imagen, imagenes, perfiles (nombre)')
           .order('created_at', { ascending: false }),
       ])
       if (perf.error) {
@@ -51,6 +56,7 @@ export default function AdminPage() {
         setPerfiles(perf.data || [])
       }
       if (!rep.error) setReportes(rep.data || [])
+      if (!anu.error) setAnuncios(anu.data || [])
       setEstado('ok')
     }
     cargar()
@@ -69,6 +75,18 @@ export default function AdminPage() {
         const enCelular = qDigitos && (telefonoDe(p) || '').replace(/\D/g, '').includes(qDigitos)
         return enTexto || enCelular
       })
+
+  const anunciosFiltrados = !q
+    ? anuncios
+    : anuncios.filter((a) =>
+        [a.titulo, a.barrio, a.categoria, a.perfiles?.nombre].some((v) => (v || '').toLowerCase().includes(q))
+      )
+
+  function estadoAnuncio(a) {
+    if (a.estado === 'cerrada') return 'Cerrado'
+    if (a.vence_at && new Date(a.vence_at) < new Date()) return 'Vencido'
+    return 'Activo'
+  }
 
   function avisar(texto, error = false) {
     setAviso(texto)
@@ -116,6 +134,7 @@ export default function AdminPage() {
 
     const idsAnuncios = new Set((anuncios || []).map((a) => a.id))
     setPerfiles((prev) => prev.filter((p) => p.id !== perfil.id))
+    setAnuncios((prev) => prev.filter((a) => !idsAnuncios.has(a.id)))
     setReportes((prev) => prev.filter((r) => !idsAnuncios.has(r.publicaciones?.id)))
     avisar(`Se eliminó a ${perfil.nombre || 'el usuario'} y todos sus datos.`)
     setProcesandoId(null)
@@ -128,6 +147,24 @@ export default function AdminPage() {
     else {
       setReportes((prev) => prev.filter((r) => r.id !== rep.id))
       avisar('Reporte descartado.')
+    }
+    setProcesandoId(null)
+  }
+
+  async function eliminarAnuncioDirecto(a) {
+    if (!window.confirm(`¿Eliminar el anuncio "${a.titulo}"? Se borran también sus fotos. No se puede deshacer.`)) return
+    setProcesandoId(a.id)
+    setAviso('')
+
+    const { data, error } = await supabase.from('publicaciones').delete().eq('id', a.id).select('id')
+    if (error || !data || data.length === 0) {
+      avisar('No se pudo eliminar el anuncio. Revisa que tu cuenta tenga permisos de administrador.', true)
+    } else {
+      const rutas = rutasEnStorage(a)
+      if (rutas.length) await supabase.storage.from('imagenes').remove(rutas)
+      setAnuncios((prev) => prev.filter((x) => x.id !== a.id))
+      setReportes((prev) => prev.filter((r) => r.publicaciones?.id !== a.id))
+      avisar('Anuncio eliminado.')
     }
     setProcesandoId(null)
   }
@@ -145,6 +182,7 @@ export default function AdminPage() {
       const rutas = rutasEnStorage(pub)
       if (rutas.length) await supabase.storage.from('imagenes').remove(rutas)
       setReportes((prev) => prev.filter((r) => r.publicaciones?.id !== pub.id))
+      setAnuncios((prev) => prev.filter((x) => x.id !== pub.id))
       avisar('Anuncio eliminado.')
     }
     setProcesandoId(null)
@@ -170,6 +208,7 @@ export default function AdminPage() {
     { id: 'pendientes', etiqueta: `Pendientes (${pendientes.length})` },
     { id: 'verificados', etiqueta: `Verificados (${verificados.length})` },
     { id: 'todos', etiqueta: `Todos (${perfiles.length})` },
+    { id: 'anuncios', etiqueta: `Anuncios (${anuncios.length})` },
     { id: 'reportes', etiqueta: `Reportes (${reportes.length})` },
   ]
 
@@ -184,7 +223,7 @@ export default function AdminPage() {
         {pestanas.map((t) => (
           <button
             key={t.id}
-            onClick={() => setPestana(t.id)}
+            onClick={() => { setPestana(t.id); setBusqueda('') }}
             className={`h-10 rounded-lg px-4 text-sm font-semibold transition ${
               pestana === t.id ? 'bg-brand text-white' : 'border border-line bg-white text-muted hover:text-ink'
             }`}
@@ -199,7 +238,7 @@ export default function AdminPage() {
           type="search"
           value={busqueda}
           onChange={(e) => setBusqueda(e.target.value)}
-          placeholder="Buscar por nombre, barrio o celular..."
+          placeholder={pestana === 'anuncios' ? 'Buscar por título, vecino, barrio o categoría...' : 'Buscar por nombre, barrio o celular...'}
           className="mb-4 h-10 w-full rounded-lg border border-line bg-white px-3 text-sm focus:border-brand focus:outline-none"
         />
       )}
@@ -208,7 +247,42 @@ export default function AdminPage() {
         <p className={`mb-4 rounded-lg p-3 text-sm ${esError ? 'bg-red-50 text-red-700' : 'bg-brand-soft text-brand-dark'}`}>{aviso}</p>
       )}
 
-      {pestana === 'reportes' ? (
+      {pestana === 'anuncios' ? (
+        anunciosFiltrados.length === 0 ? (
+          <div className="rounded-2xl border border-line bg-white p-8 text-center text-sm text-muted">
+            {q ? 'Ningún anuncio coincide con la búsqueda.' : 'Todavía no hay anuncios.'}
+          </div>
+        ) : (
+          <ul className="space-y-3">
+            {anunciosFiltrados.map((a) => (
+              <li key={a.id} className="rounded-2xl border border-line bg-white p-4 shadow-sm">
+                <div className="flex gap-3">
+                  <div className="h-16 w-16 flex-none overflow-hidden rounded-lg bg-surface">
+                    {a.imagen && <img src={a.imagen} alt="" className="h-full w-full object-cover" />}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <a href={`/anuncio/${a.id}`} target="_blank" rel="noopener noreferrer" className="block truncate font-bold hover:underline">
+                      {a.titulo}
+                    </a>
+                    <p className="text-sm font-semibold text-brand">{precioTexto(a.precio)}</p>
+                    <p className="text-xs text-muted">
+                      <span className="capitalize">{a.tipo}</span> · {a.categoria} · {estadoAnuncio(a)}
+                    </p>
+                    <p className="text-xs text-muted">
+                      {a.perfiles?.nombre || 'Vecino'} · {a.barrio || 'Sin barrio'} · {new Date(a.created_at).toLocaleDateString('es-CO')}
+                    </p>
+                  </div>
+                </div>
+                <div className="mt-3 flex justify-end border-t border-line pt-3">
+                  <button onClick={() => eliminarAnuncioDirecto(a)} disabled={procesandoId === a.id} className="h-10 rounded-lg border border-red-200 px-4 text-sm font-semibold text-red-600 transition hover:bg-red-50 disabled:opacity-60">
+                    {procesandoId === a.id ? 'Eliminando...' : 'Eliminar anuncio'}
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )
+      ) : pestana === 'reportes' ? (
         reportes.length === 0 ? (
           <div className="rounded-2xl border border-line bg-white p-8 text-center text-sm text-muted">No hay reportes pendientes.</div>
         ) : (

@@ -1,8 +1,9 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { supabase } from '../../src/lib/supabase'
-import { CATEGORIAS } from '../../src/lib/categorias'
+import { CATEGORIAS, CATEGORIA_INMUEBLES } from '../../src/lib/categorias'
 import { comprimirImagen } from '../../src/lib/imagenes'
+import AvisoInmueble from '../components/AvisoInmueble'
 
 const MAX_FOTOS = 3
 const MAX_BYTES = 30 * 1024 * 1024
@@ -14,7 +15,7 @@ export default function PublicarPage() {
   const [titulo, setTitulo] = useState('')
   const [descripcion, setDescripcion] = useState('')
   const [precio, setPrecio] = useState('')
-  const [gratis, setGratis] = useState(false)
+  const [modoPrecio, setModoPrecio] = useState('precio') // precio | gratis | convenir
   const [categoria, setCategoria] = useState('')
   const [tipo, setTipo] = useState('servicio')
   const [fotos, setFotos] = useState([]) // archivos elegidos (la primera es la principal)
@@ -85,9 +86,12 @@ export default function PublicarPage() {
       return
     }
 
-    const precioNumero = gratis ? 0 : parseInt(precio, 10)
-    if (!gratis && (!precioNumero || precioNumero <= 0)) {
-      avisar('Escribe un precio válido o marca "Lo regalo".', true)
+    // 0 = gratis · null = precio a convenir (solo servicios)
+    const aConvenir = modoPrecio === 'convenir' && tipo === 'servicio'
+    const gratis = modoPrecio === 'gratis'
+    const precioNumero = gratis ? 0 : aConvenir ? null : parseInt(precio, 10)
+    if (!gratis && !aConvenir && (!precioNumero || precioNumero <= 0)) {
+      avisar('Escribe un precio válido, o elige "Lo regalo".', true)
       return
     }
 
@@ -145,7 +149,7 @@ export default function PublicarPage() {
       setTitulo('')
       setDescripcion('')
       setPrecio('')
-      setGratis(false)
+      setModoPrecio('precio')
       setFotos([])
       setCategoria('')
       setTipo('servicio')
@@ -186,7 +190,10 @@ export default function PublicarPage() {
                 <button
                   key={t.valor}
                   type="button"
-                  onClick={() => setTipo(t.valor)}
+                  onClick={() => {
+                    setTipo(t.valor)
+                    if (t.valor === 'producto' && modoPrecio === 'convenir') setModoPrecio('precio')
+                  }}
                   className={`h-11 rounded-lg border text-sm font-semibold transition ${
                     tipo === t.valor ? 'border-brand bg-brand-soft text-brand' : 'border-line bg-white text-muted hover:text-ink'
                   }`}
@@ -218,30 +225,67 @@ export default function PublicarPage() {
             </select>
           </div>
 
+          {categoria === CATEGORIA_INMUEBLES && (
+            <>
+              <AvisoInmueble />
+              <p className="-mt-2 text-xs text-muted">
+                Si es un arriendo, escribe el valor mensual y aclara "por mes" en la descripción.
+              </p>
+            </>
+          )}
+
           <div>
             <label className="mb-1 block text-sm font-medium">Precio (COP)</label>
-            <input
-              type="number"
-              inputMode="numeric"
-              min="1"
-              value={gratis ? '' : precio}
-              onChange={(e) => setPrecio(e.target.value)}
-              required={!gratis}
-              disabled={gratis}
-              placeholder={gratis ? 'Gratis' : 'Ej. 45000'}
-              className={`${campo} h-11 disabled:bg-surface`}
-            />
-            <label className="mt-2 flex cursor-pointer items-center gap-2 rounded-lg border border-gold-soft bg-gold-bg/50 p-3 text-sm">
+            <div role="radiogroup" aria-label="Tipo de precio" className={`mb-2 grid gap-2 ${tipo === 'servicio' ? 'grid-cols-3' : 'grid-cols-2'}`}>
+              {[
+                { valor: 'precio', etiqueta: 'Con precio' },
+                ...(tipo === 'servicio' ? [{ valor: 'convenir', etiqueta: 'A convenir' }] : []),
+                { valor: 'gratis', etiqueta: 'Lo regalo' },
+              ].map((o) => (
+                <button
+                  key={o.valor}
+                  type="button"
+                  role="radio"
+                  aria-checked={modoPrecio === o.valor}
+                  onClick={() => setModoPrecio(o.valor)}
+                  className={`h-10 rounded-lg border text-[13px] font-semibold transition ${
+                    modoPrecio === o.valor
+                      ? o.valor === 'gratis'
+                        ? 'border-gold bg-gold-bg text-gold-ink'
+                        : 'border-brand bg-brand-soft text-brand'
+                      : 'border-line bg-white text-muted hover:text-ink'
+                  }`}
+                >
+                  {o.etiqueta}
+                </button>
+              ))}
+            </div>
+
+            {modoPrecio === 'precio' && (
               <input
-                type="checkbox"
-                checked={gratis}
-                onChange={(e) => setGratis(e.target.checked)}
-                className="h-4 w-4 accent-[#1f7a4d]"
+                type="number"
+                inputMode="numeric"
+                min="1"
+                value={precio}
+                onChange={(e) => setPrecio(e.target.value)}
+                required
+                placeholder="Ej. 45000"
+                className={`${campo} h-11`}
               />
-              <span>
-                <strong>Lo regalo</strong> <span className="text-muted">— sin costo para el vecino</span>
-              </span>
-            </label>
+            )}
+            {modoPrecio === 'convenir' && (
+              <p className="rounded-lg bg-surface p-3 text-xs text-muted">
+                En el anuncio dirá <strong>"Precio a convenir"</strong> y el vecino te escribirá para saber el valor.
+              </p>
+            )}
+            {modoPrecio === 'gratis' && (
+              <p className="rounded-lg border border-gold-soft bg-gold-bg/50 p-3 text-xs text-gold-ink">
+                Sin costo para el vecino. Aparecerá como <strong>Gratis</strong>.
+              </p>
+            )}
+            {tipo === 'producto' && (
+              <p className="mt-1 text-xs text-muted">Los productos llevan precio para que tus vecinos sepan de una vez cuánto cuesta.</p>
+            )}
           </div>
 
           <div>
