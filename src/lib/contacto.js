@@ -33,6 +33,14 @@ export function precioTexto(precio) {
   return precio === 0 ? 'Gratis' : `$${Number(precio).toLocaleString('es-CO')}`
 }
 
+// Cuenta una visita o un contacto (solo números por anuncio; la base de datos ignora al dueño).
+// Si falla, no afecta nada de lo que ve el usuario.
+export function registrarEvento(supabase, publicacionId, tipo) {
+  try {
+    supabase.rpc('registrar_evento', { p_publicacion: publicacionId, p_tipo: tipo }).then(() => {}, () => {})
+  } catch (_) {}
+}
+
 // Saca la ruta del archivo dentro del bucket a partir de la URL pública
 export function rutaEnStorage(url) {
   if (!url) return null

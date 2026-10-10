@@ -381,6 +381,7 @@ export default function Home() {
                     verificado={miVerificado}
                     vendedor={vendedor}
                     titulo={pub.titulo}
+                    publicacionId={pub.id}
                     volver="/"
                     clase="mt-auto"
                   />

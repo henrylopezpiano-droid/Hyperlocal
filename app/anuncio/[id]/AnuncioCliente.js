@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../../../src/lib/supabase'
-import { NOMBRE_APP, precioTexto, fotosDe } from '../../../src/lib/contacto'
+import { NOMBRE_APP, precioTexto, fotosDe, registrarEvento } from '../../../src/lib/contacto'
 import BotonContacto from '../../components/BotonContacto'
 import ReportarModal from '../../components/ReportarModal'
 import AvisoInmueble from '../../components/AvisoInmueble'
@@ -49,6 +49,16 @@ export default function AnuncioCliente({ id }) {
       else {
         setPub(data)
         setEstado('ok')
+        // Cuenta la visita una sola vez por sesión del navegador
+        try {
+          const clave = `visto-${id}`
+          if (!sessionStorage.getItem(clave)) {
+            sessionStorage.setItem(clave, '1')
+            registrarEvento(supabase, id, 'visita')
+          }
+        } catch (_) {
+          registrarEvento(supabase, id, 'visita')
+        }
       }
     }
     cargar()
@@ -194,7 +204,7 @@ export default function AnuncioCliente({ id }) {
 
           {!noDisponible && (
             <div className="mt-5">
-              <BotonContacto sesion={sesion} verificado={miVerificado} vendedor={vendedor} titulo={pub.titulo} volver={rutaVolver} grande />
+              <BotonContacto sesion={sesion} verificado={miVerificado} vendedor={vendedor} titulo={pub.titulo} publicacionId={pub.id} volver={rutaVolver} grande />
             </div>
           )}
 

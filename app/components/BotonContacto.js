@@ -1,8 +1,9 @@
 'use client'
-import { telefonoDe, enlaceWhatsApp } from '../../src/lib/contacto'
+import { telefonoDe, enlaceWhatsApp, registrarEvento } from '../../src/lib/contacto'
+import { supabase } from '../../src/lib/supabase'
 
 // Tres estados: sin sesión, con sesión sin verificar, y verificado (ve el WhatsApp)
-export default function BotonContacto({ sesion, verificado, vendedor, titulo, volver = '/', grande = false, clase = '' }) {
+export default function BotonContacto({ sesion, verificado, vendedor, titulo, publicacionId, volver = '/', grande = false, clase = '' }) {
   const base = `block rounded-lg text-center font-semibold ${grande ? 'py-3 text-sm' : 'py-2 text-xs'} ${clase}`
   const tel = telefonoDe(vendedor)
 
@@ -15,7 +16,7 @@ export default function BotonContacto({ sesion, verificado, vendedor, titulo, vo
   }
   if (tel) {
     return (
-      <a href={enlaceWhatsApp(tel, vendedor?.nombre, titulo)} target="_blank" rel="noopener noreferrer" className={`${base} bg-brand text-white transition hover:bg-brand-dark`}>
+      <a href={enlaceWhatsApp(tel, vendedor?.nombre, titulo)} onClick={() => publicacionId && registrarEvento(supabase, publicacionId, 'contacto')} target="_blank" rel="noopener noreferrer" className={`${base} bg-brand text-white transition hover:bg-brand-dark`}>
         Escribir por WhatsApp
       </a>
     )

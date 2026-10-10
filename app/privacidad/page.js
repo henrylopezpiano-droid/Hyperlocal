@@ -36,6 +36,7 @@ export default function Privacidad() {
             'Municipio y barrio donde vives.',
             'Contraseña (se guarda cifrada; nadie, incluidos nosotros, puede leerla).',
             'Contenido de tus anuncios: título, descripción, precio y fotos.',
+            'Conteo de visitas a cada anuncio y de toques en el botón de contacto (solo números por anuncio; no se guarda quién los hizo).',
           ]}
         />
         <p>
@@ -51,6 +52,7 @@ export default function Privacidad() {
             'Verificar que perteneces a la comunidad del barrio.',
             'Mostrar tus anuncios a otros vecinos.',
             'Permitir que otros usuarios registrados te contacten por WhatsApp.',
+            'Mostrarte cuántas personas vieron o contactaron tus anuncios.',
             'Moderar contenido, atender reportes y mantener la seguridad de la plataforma.',
             'Enviarte comunicaciones relacionadas con el servicio (por ejemplo, la confirmación de tu cuenta).',
             'Cumplir obligaciones legales y atender requerimientos de autoridades competentes.',

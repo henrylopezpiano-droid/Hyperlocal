@@ -33,6 +33,7 @@ export default function MisPublicaciones() {
   const [cargando, setCargando] = useState(true)
   const [trabajandoId, setTrabajandoId] = useState(null)
   const [aviso, setAviso] = useState('')
+  const [metricas, setMetricas] = useState({})
   const [editandoId, setEditandoId] = useState(null)
   const [form, setForm] = useState({ titulo: '', tipo: 'servicio', descripcion: '', categoria: '', modo: 'precio', precio: '' })
 
@@ -51,6 +52,10 @@ export default function MisPublicaciones() {
       if (error) setAviso('No se pudieron cargar tus publicaciones: ' + error.message)
       else setPublicaciones(data || [])
       setCargando(false)
+
+      // Visitas y contactos de mis anuncios (si falla, simplemente no se muestran)
+      const { data: m } = await supabase.from('metricas_totales').select('publicacion_id, visitas, contactos')
+      if (m) setMetricas(Object.fromEntries(m.map((x) => [x.publicacion_id, x])))
     }
     cargar()
   }, [])
@@ -179,6 +184,12 @@ export default function MisPublicaciones() {
                       )}
                       {est === 'vencida' && <span className="rounded-full bg-amber-50 px-2 py-0.5 font-semibold text-amber-800">Vencido</span>}
                       {est === 'cerrada' && <span className="rounded-full bg-gold-bg px-2 py-0.5 font-semibold text-gold-ink">{etiquetaCerrada(pub)}</span>}
+                    </p>
+                    <p className="mt-1 text-xs text-muted">
+                      {metricas[pub.id]?.visitas ?? 0} {(metricas[pub.id]?.visitas ?? 0) === 1 ? 'visita' : 'visitas'} ·{' '}
+                      <span className="font-semibold text-ink">
+                        {metricas[pub.id]?.contactos ?? 0} {(metricas[pub.id]?.contactos ?? 0) === 1 ? 'contacto' : 'contactos'}
+                      </span>
                     </p>
                   </div>
                 </div>

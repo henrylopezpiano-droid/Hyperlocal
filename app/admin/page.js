@@ -15,6 +15,8 @@ export default function AdminPage() {
   const [perfiles, setPerfiles] = useState([])
   const [reportes, setReportes] = useState([])
   const [anuncios, setAnuncios] = useState([])
+  const [metricas, setMetricas] = useState({})
+  const [ordenAnuncios, setOrdenAnuncios] = useState('recientes')
   const [pestana, setPestana] = useState('pendientes')
   const [busqueda, setBusqueda] = useState('')
   const [procesandoId, setProcesandoId] = useState(null)
@@ -37,7 +39,7 @@ export default function AdminPage() {
         return
       }
 
-      const [perf, rep, anu] = await Promise.all([
+      const [perf, rep, anu, met] = await Promise.all([
         supabase.from('perfiles').select('*, contactos (telefono)'),
         supabase
           .from('reportes')
@@ -48,6 +50,7 @@ export default function AdminPage() {
           .from('publicaciones')
           .select('id, titulo, tipo, categoria, precio, estado, vence_at, created_at, barrio, imagen, imagenes, perfiles (nombre)')
           .order('created_at', { ascending: false }),
+        supabase.from('metricas_totales').select('publicacion_id, visitas, contactos'),
       ])
       if (perf.error) {
         setAviso('No se pudo cargar la lista: ' + perf.error.message)
@@ -57,6 +60,7 @@ export default function AdminPage() {
       }
       if (!rep.error) setReportes(rep.data || [])
       if (!anu.error) setAnuncios(anu.data || [])
+      if (!met.error && met.data) setMetricas(Object.fromEntries(met.data.map((x) => [x.publicacion_id, x])))
       setEstado('ok')
     }
     cargar()
@@ -76,11 +80,20 @@ export default function AdminPage() {
         return enTexto || enCelular
       })
 
-  const anunciosFiltrados = !q
+  const anunciosFiltrados = (!q
     ? anuncios
     : anuncios.filter((a) =>
         [a.titulo, a.barrio, a.categoria, a.perfiles?.nombre].some((v) => (v || '').toLowerCase().includes(q))
       )
+  ).slice().sort((a, b) =>
+    ordenAnuncios === 'contactos'
+      ? (metricas[b.id]?.contactos || 0) - (metricas[a.id]?.contactos || 0) || (metricas[b.id]?.visitas || 0) - (metricas[a.id]?.visitas || 0)
+      : ordenAnuncios === 'visitas'
+        ? (metricas[b.id]?.visitas || 0) - (metricas[a.id]?.visitas || 0)
+        : 0
+  )
+  const totalVisitas = Object.values(metricas).reduce((n, m) => n + (m.visitas || 0), 0)
+  const totalContactos = Object.values(metricas).reduce((n, m) => n + (m.contactos || 0), 0)
 
   function estadoAnuncio(a) {
     if (a.estado === 'cerrada') return 'Cerrado'
@@ -247,6 +260,19 @@ export default function AdminPage() {
         <p className={`mb-4 rounded-lg p-3 text-sm ${esError ? 'bg-red-50 text-red-700' : 'bg-brand-soft text-brand-dark'}`}>{aviso}</p>
       )}
 
+      {pestana === 'anuncios' && (
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-line bg-white p-3 text-sm">
+          <p className="text-muted">
+            <strong className="text-ink">{totalVisitas}</strong> visitas · <strong className="text-ink">{totalContactos}</strong> contactos en total
+          </p>
+          <select value={ordenAnuncios} onChange={(e) => setOrdenAnuncios(e.target.value)} className="h-9 rounded-lg border border-line bg-white px-2 text-sm">
+            <option value="recientes">Más recientes</option>
+            <option value="contactos">Más contactados</option>
+            <option value="visitas">Más visitados</option>
+          </select>
+        </div>
+      )}
+
       {pestana === 'anuncios' ? (
         anunciosFiltrados.length === 0 ? (
           <div className="rounded-2xl border border-line bg-white p-8 text-center text-sm text-muted">
@@ -270,6 +296,9 @@ export default function AdminPage() {
                     </p>
                     <p className="text-xs text-muted">
                       {a.perfiles?.nombre || 'Vecino'} · {a.barrio || 'Sin barrio'} · {new Date(a.created_at).toLocaleDateString('es-CO')}
+                    </p>
+                    <p className="text-xs font-semibold text-ink">
+                      {metricas[a.id]?.visitas ?? 0} visitas · {metricas[a.id]?.contactos ?? 0} contactos
                     </p>
                   </div>
                 </div>
