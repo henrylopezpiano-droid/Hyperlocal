@@ -206,7 +206,7 @@ export default function LoginPage() {
           </div>
 
           <CampoClave
-            etiqueta="Contraseña"
+            etiqueta={registrando ? 'Crea tu contraseña' : 'Contraseña'}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             autoComplete={registrando ? 'new-password' : 'current-password'}
@@ -215,7 +215,7 @@ export default function LoginPage() {
 
           {registrando ? (
             <CampoClave
-              etiqueta="Confirmar contraseña"
+              etiqueta="Repite tu contraseña"
               value={password2}
               onChange={(e) => setPassword2(e.target.value)}
               autoComplete="new-password"
