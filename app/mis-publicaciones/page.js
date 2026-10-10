@@ -34,7 +34,7 @@ export default function MisPublicaciones() {
   const [trabajandoId, setTrabajandoId] = useState(null)
   const [aviso, setAviso] = useState('')
   const [editandoId, setEditandoId] = useState(null)
-  const [form, setForm] = useState({ titulo: '', descripcion: '', categoria: '', modo: 'precio', precio: '' })
+  const [form, setForm] = useState({ titulo: '', tipo: 'servicio', descripcion: '', categoria: '', modo: 'precio', precio: '' })
 
   useEffect(() => {
     async function cargar() {
@@ -73,6 +73,7 @@ export default function MisPublicaciones() {
     setAviso('')
     setForm({
       titulo: pub.titulo || '',
+      tipo: pub.tipo || 'servicio',
       descripcion: pub.descripcion || '',
       categoria: pub.categoria || '',
       modo: pub.precio === 0 ? 'gratis' : pub.precio == null ? 'convenir' : 'precio',
@@ -85,7 +86,7 @@ export default function MisPublicaciones() {
   // así que editar un anuncio no reinicia ni alarga sus 30 días.
   async function guardarEdicion(e, pub) {
     e.preventDefault()
-    const aConvenir = form.modo === 'convenir' && pub.tipo === 'servicio'
+    const aConvenir = form.modo === 'convenir' && form.tipo === 'servicio'
     const precio = form.modo === 'gratis' ? 0 : aConvenir ? null : parseInt(form.precio, 10)
     if (form.modo !== 'gratis' && !aConvenir && (!precio || precio <= 0)) {
       setAviso('Escribe un precio válido, o elige "Lo regalo".')
@@ -93,6 +94,7 @@ export default function MisPublicaciones() {
     }
     const ok = await actualizar(pub, {
       titulo: form.titulo.trim(),
+      tipo: form.tipo,
       descripcion: form.descripcion.trim(),
       categoria: form.categoria,
       precio,
@@ -184,6 +186,17 @@ export default function MisPublicaciones() {
                 {editandoId === pub.id && (
                   <form onSubmit={(e) => guardarEdicion(e, pub)} className="mt-3 space-y-3 border-t border-line pt-3">
                     <div>
+                      <label className="mb-1 block text-xs font-medium">¿Qué es?</label>
+                      <div className="grid grid-cols-2 gap-2">
+                        {[{ valor: 'servicio', etiqueta: 'Servicio' }, { valor: 'producto', etiqueta: 'Producto' }].map((t) => (
+                          <button key={t.valor} type="button" onClick={() => setForm({ ...form, tipo: t.valor, modo: t.valor === 'producto' && form.modo === 'convenir' ? 'precio' : form.modo })}
+                            className={`h-9 rounded-lg border text-xs font-semibold transition ${form.tipo === t.valor ? 'border-brand bg-brand-soft text-brand' : 'border-line bg-white text-muted hover:text-ink'}`}>
+                            {t.etiqueta}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <div>
                       <label className="mb-1 block text-xs font-medium">Título</label>
                       <input required maxLength={80} value={form.titulo} onChange={(e) => setForm({ ...form, titulo: e.target.value })} className="h-10 w-full rounded-lg border border-line bg-white px-3 text-sm focus:border-brand focus:outline-none" />
                     </div>
@@ -197,10 +210,10 @@ export default function MisPublicaciones() {
                     {form.categoria === CATEGORIA_INMUEBLES && <AvisoInmueble />}
                     <div>
                       <label className="mb-1 block text-xs font-medium">Precio (COP)</label>
-                      <div role="radiogroup" aria-label="Tipo de precio" className={`mb-2 grid gap-2 ${pub.tipo === 'servicio' ? 'grid-cols-3' : 'grid-cols-2'}`}>
+                      <div role="radiogroup" aria-label="Tipo de precio" className={`mb-2 grid gap-2 ${form.tipo === 'servicio' ? 'grid-cols-3' : 'grid-cols-2'}`}>
                         {[
                           { valor: 'precio', etiqueta: 'Con precio' },
-                          ...(pub.tipo === 'servicio' ? [{ valor: 'convenir', etiqueta: 'A convenir' }] : []),
+                          ...(form.tipo === 'servicio' ? [{ valor: 'convenir', etiqueta: 'A convenir' }] : []),
                           { valor: 'gratis', etiqueta: 'Lo regalo' },
                         ].map((o) => (
                           <button key={o.valor} type="button" role="radio" aria-checked={form.modo === o.valor} onClick={() => setForm({ ...form, modo: o.valor })}
