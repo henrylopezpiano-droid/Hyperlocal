@@ -185,12 +185,31 @@ export default function MisPublicaciones() {
                       {est === 'vencida' && <span className="rounded-full bg-amber-50 px-2 py-0.5 font-semibold text-amber-800">Vencido</span>}
                       {est === 'cerrada' && <span className="rounded-full bg-gold-bg px-2 py-0.5 font-semibold text-gold-ink">{etiquetaCerrada(pub)}</span>}
                     </p>
-                    <p className="mt-1 text-xs text-muted">
-                      {metricas[pub.id]?.visitas ?? 0} {(metricas[pub.id]?.visitas ?? 0) === 1 ? 'visita' : 'visitas'} ·{' '}
-                      <span className="font-semibold text-ink">
-                        {metricas[pub.id]?.contactos ?? 0} {(metricas[pub.id]?.contactos ?? 0) === 1 ? 'contacto' : 'contactos'}
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      <span className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-surface px-2.5 py-1">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-muted" aria-hidden="true">
+                          <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z" />
+                          <circle cx="12" cy="12" r="3" />
+                        </svg>
+                        <span className="text-base font-extrabold leading-none text-ink">{metricas[pub.id]?.visitas ?? 0}</span>
+                        <span className="text-xs text-muted">{(metricas[pub.id]?.visitas ?? 0) === 1 ? 'visita' : 'visitas'}</span>
                       </span>
-                    </p>
+                      <span
+                        className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 ${
+                          (metricas[pub.id]?.contactos ?? 0) > 0 ? 'border-brand/40 bg-brand-soft' : 'border-line bg-surface'
+                        }`}
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={(metricas[pub.id]?.contactos ?? 0) > 0 ? 'text-brand' : 'text-muted'} aria-hidden="true">
+                          <path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12Z" />
+                        </svg>
+                        <span className={`text-base font-extrabold leading-none ${(metricas[pub.id]?.contactos ?? 0) > 0 ? 'text-brand-dark' : 'text-ink'}`}>
+                          {metricas[pub.id]?.contactos ?? 0}
+                        </span>
+                        <span className={`text-xs ${(metricas[pub.id]?.contactos ?? 0) > 0 ? 'font-semibold text-brand-dark' : 'text-muted'}`}>
+                          {(metricas[pub.id]?.contactos ?? 0) === 1 ? 'contacto' : 'contactos'}
+                        </span>
+                      </span>
+                    </div>
                   </div>
                 </div>
 
