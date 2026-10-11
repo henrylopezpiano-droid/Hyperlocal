@@ -74,7 +74,7 @@ export default function Terminos() {
       <Seccion titulo="6. Moderación y reportes">
         <p>
           Podemos ocultar o eliminar anuncios y suspender cuentas que incumplan estos términos o que sean reportados
-          por la comunidad. Si ves algo indebido, avísanos en <strong>[henrylopezpiano@gmail.com]</strong>.
+          por la comunidad. Si ves algo indebido, avísanos en <strong>henrylopezpiano@gmail.com</strong>.
         </p>
       </Seccion>
 
@@ -102,7 +102,7 @@ export default function Terminos() {
           de Colombia.
         </p>
         <p>
-          Responsable: <strong>[Henry Javier Lopez Rodriguez]</strong> · Contacto: <strong>[henrylopezpiano@gmail.com]</strong>
+          Responsable: <strong>Henry Javier Lopez Rodriguez</strong> · Contacto: <strong>henrylopezpiano@gmail.com</strong>
         </p>
       </Seccion>
     </Pagina>

@@ -9,7 +9,7 @@ export default function Privacidad() {
   return (
     <Pagina
       titulo="Política de privacidad y tratamiento de datos personales"
-      version="Versión 1.0 · 1 de octubre de 2026"
+      version="Versión 1.1 · 11 de octubre de 2026"
     >
       <p>
         En Mercado Hiperlocal protegemos tus datos personales. Esta política explica qué datos recogemos, para qué los
@@ -19,11 +19,10 @@ export default function Privacidad() {
 
       <Seccion titulo="1. Responsable del tratamiento">
         <p>
-          <strong>[HENRY JAVIER LOPEZ RODRIGUEZ]</strong>, identificado con <strong>[1090401796]</strong>, con
-          domicilio en <strong>[Cucuta, Norte de Santander]</strong>.
+          <strong>HENRY JAVIER LOPEZ RODRIGUEZ</strong>, con domicilio en <strong>Cúcuta, Norte de Santander</strong>.
         </p>
         <p>
-          Correo para consultas, reclamos y solicitudes sobre datos personales: <strong>[Henrylopezpiano@gmail.com]</strong>.
+          Correo y teléfono (WhatsApp) para consultas, reclamos y solicitudes sobre datos personales: <strong>henrylopezpiano@gmail.com</strong> · <strong>300 713 8963</strong>.
         </p>
       </Seccion>
 
@@ -64,7 +63,8 @@ export default function Privacidad() {
         <Lista
           items={[
             'Públicamente (sin iniciar sesión): tu nombre, tu barrio y municipio, la insignia de vecino verificado y tus anuncios.',
-            'Solo usuarios con sesión iniciada: tu número de celular, a través del botón de contacto por WhatsApp.',
+            'Solo vecinos verificados con sesión iniciada: tu número de celular, a través del botón de contacto por WhatsApp.',
+            'Los administradores pueden ver tu número de celular para verificar tu cuenta.',
             'Nunca se muestran: tu correo electrónico ni tu contraseña.',
           ]}
         />
@@ -95,7 +95,7 @@ export default function Privacidad() {
 
       <Seccion titulo="7. Cómo ejercer tus derechos">
         <p>
-          Escríbenos a <strong>[CORREO DE CONTACTO]</strong> indicando tu nombre, el correo con el que te registraste y
+          Escríbenos a <strong>henrylopezpiano@gmail.com</strong> indicando tu nombre, el correo con el que te registraste y
           tu solicitud. Responderemos las consultas en un máximo de 10 días hábiles (prorrogables por 5 días hábiles
           más, informándote el motivo) y los reclamos en un máximo de 15 días hábiles (prorrogables hasta por 8 días
           hábiles más). Si no estás conforme con la respuesta, puedes acudir a la Superintendencia de Industria y

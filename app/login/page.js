@@ -14,7 +14,8 @@ function normalizarTelefono(valor) {
 // A dónde volver después de ingresar (solo rutas internas)
 function destino() {
   const v = new URLSearchParams(window.location.search).get('volver')
-  return v && v.startsWith('/') && !v.startsWith('//') ? v : '/'
+  // Solo rutas internas: se rechazan // y también \\ (los navegadores la tratan como /)
+  return v && v.startsWith('/') && !v.startsWith('//') && !v.includes('\\') ? v : '/'
 }
 
 const campo =
@@ -104,7 +105,7 @@ export default function LoginPage() {
             telefono: tel,
             // Constancia de la autorización (Ley 1581 de 2012)
             acepto_datos_at: new Date().toISOString(),
-            version_politica: '1.0',
+            version_politica: '1.1',
           },
         },
       })

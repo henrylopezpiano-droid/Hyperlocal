@@ -2,11 +2,14 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { supabase } from '../../src/lib/supabase'
-import { rutasEnStorage, precioTexto } from '../../src/lib/contacto'
+import { rutasEnStorage, rutaEnStorage, fotosDe, precioTexto } from '../../src/lib/contacto'
+import { comprimirImagen } from '../../src/lib/imagenes'
 import { CATEGORIAS, CATEGORIA_INMUEBLES } from '../../src/lib/categorias'
 import AvisoInmueble from '../components/AvisoInmueble'
 
 const DIA = 24 * 60 * 60 * 1000
+const MAX_FOTOS = 3
+const MAX_BYTES = 30 * 1024 * 1024
 
 function estadoDe(p) {
   if (p.estado === 'cerrada') return 'cerrada'
@@ -35,6 +38,8 @@ export default function MisPublicaciones() {
   const [aviso, setAviso] = useState('')
   const [metricas, setMetricas] = useState({})
   const [editandoId, setEditandoId] = useState(null)
+  const [fotosEdit, setFotosEdit] = useState([]) // { url } = ya subida · { file, previa } = nueva
+  const [progreso, setProgreso] = useState('')
   const [form, setForm] = useState({ titulo: '', tipo: 'servicio', descripcion: '', categoria: '', modo: 'precio', precio: '' })
 
   useEffect(() => {
@@ -84,7 +89,36 @@ export default function MisPublicaciones() {
       modo: pub.precio === 0 ? 'gratis' : pub.precio == null ? 'convenir' : 'precio',
       precio: pub.precio ? String(pub.precio) : '',
     })
+    setFotosEdit(fotosDe(pub).map((url) => ({ url })))
+    setProgreso('')
     setEditandoId(pub.id)
+  }
+
+  function cerrarEdicion() {
+    fotosEdit.forEach((f) => f.previa && URL.revokeObjectURL(f.previa))
+    setFotosEdit([])
+    setEditandoId(null)
+  }
+
+  function agregarFotos(e) {
+    const nuevas = Array.from(e.target.files || [])
+    e.target.value = ''
+    if (nuevas.length === 0) return
+    const validas = nuevas.filter((f) => f.size <= MAX_BYTES)
+    const aceptadas = validas.slice(0, MAX_FOTOS - fotosEdit.length)
+    setFotosEdit([...fotosEdit, ...aceptadas.map((file) => ({ file, previa: URL.createObjectURL(file) }))])
+    if (validas.length < nuevas.length) setAviso('Alguna foto es demasiado grande y no se agregó.')
+    else if (validas.length > aceptadas.length) setAviso(`Máximo ${MAX_FOTOS} fotos por anuncio.`)
+    else setAviso('')
+  }
+
+  function quitarFoto(i) {
+    if (fotosEdit[i].previa) URL.revokeObjectURL(fotosEdit[i].previa)
+    setFotosEdit(fotosEdit.filter((_, j) => j !== i))
+  }
+
+  function hacerPrincipal(i) {
+    setFotosEdit([fotosEdit[i], ...fotosEdit.filter((_, j) => j !== i)])
   }
 
   // Solo se cambian estos 4 campos: la fecha de vencimiento y el estado NO se tocan,
@@ -97,14 +131,62 @@ export default function MisPublicaciones() {
       setAviso('Escribe un precio válido, o elige "Lo regalo".')
       return
     }
+
+    setTrabajandoId(pub.id)
+    setAviso('')
+
+    // 1) Sube las fotos nuevas (las que ya estaban se conservan tal cual)
+    const subidos = []
+    const finales = []
+    const nNuevas = fotosEdit.filter((f) => f.file).length
+    let hechas = 0
+    for (const item of fotosEdit) {
+      if (item.url) {
+        finales.push(item.url)
+        continue
+      }
+      hechas += 1
+      setProgreso(nNuevas > 1 ? `Subiendo foto ${hechas} de ${nNuevas}...` : 'Subiendo la foto...')
+      const foto = await comprimirImagen(item.file)
+      const extension = foto.type === 'image/jpeg' ? 'jpg' : (foto.name.split('.').pop() || 'jpg').toLowerCase()
+      const ruta = `${pub.user_id}-${Date.now()}-${finales.length}.${extension}`
+      const { error: errorSubida } = await supabase.storage
+        .from('imagenes')
+        .upload(ruta, foto, { contentType: foto.type || 'image/jpeg', cacheControl: '31536000' })
+      if (errorSubida) {
+        if (subidos.length) await supabase.storage.from('imagenes').remove(subidos)
+        setAviso('Error al subir una foto: ' + errorSubida.message)
+        setProgreso('')
+        setTrabajandoId(null)
+        return
+      }
+      subidos.push(ruta)
+      finales.push(supabase.storage.from('imagenes').getPublicUrl(ruta).data.publicUrl)
+    }
+
+    // 2) Guarda el anuncio. Solo estos campos: vence_at y estado NO se tocan.
+    setProgreso('Guardando...')
     const ok = await actualizar(pub, {
       titulo: form.titulo.trim(),
       tipo: form.tipo,
       descripcion: form.descripcion.trim(),
       categoria: form.categoria,
       precio,
+      imagen: finales[0] || null,
+      imagenes: finales,
     })
-    if (ok) setEditandoId(null)
+    setProgreso('')
+
+    if (!ok) {
+      // Si no se pudo guardar, borra las fotos nuevas que acabamos de subir
+      if (subidos.length) await supabase.storage.from('imagenes').remove(subidos)
+      return
+    }
+
+    // 3) Borra de Storage las fotos que el vecino quitó
+    const quitadas = fotosDe(pub).filter((u) => !finales.includes(u)).map(rutaEnStorage).filter(Boolean)
+    if (quitadas.length) await supabase.storage.from('imagenes').remove(quitadas)
+    cerrarEdicion()
   }
 
   const cerrar = (pub) => actualizar(pub, { estado: 'cerrada', cerrada_at: new Date().toISOString() })
@@ -257,15 +339,44 @@ export default function MisPublicaciones() {
                       )}
                     </div>
                     <div>
+                      <label className="mb-1 block text-xs font-medium">
+                        Fotos <span className="font-normal text-muted">(hasta {MAX_FOTOS})</span>
+                      </label>
+                      {fotosEdit.length > 0 && (
+                        <div className="mb-2 grid grid-cols-3 gap-2">
+                          {fotosEdit.map((f, i) => (
+                            <div key={f.url || f.previa} className="relative aspect-square overflow-hidden rounded-lg border border-line bg-surface">
+                              <img src={f.url || f.previa} alt={`Foto ${i + 1}`} className="h-full w-full object-cover" />
+                              <button type="button" onClick={() => quitarFoto(i)} aria-label={`Quitar foto ${i + 1}`} className="absolute right-1 top-1 grid h-6 w-6 place-items-center rounded-full bg-white/95 text-sm font-bold leading-none text-red-600 shadow">
+                                ×
+                              </button>
+                              {i === 0 ? (
+                                <span className="absolute inset-x-0 bottom-0 bg-white/90 py-1 text-center text-[10px] font-semibold text-brand">Principal</span>
+                              ) : (
+                                <button type="button" onClick={() => hacerPrincipal(i)} className="absolute inset-x-0 bottom-0 bg-white/90 py-1 text-center text-[10px] font-semibold text-muted hover:text-brand">
+                                  Hacer principal
+                                </button>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      {fotosEdit.length < MAX_FOTOS ? (
+                        <input type="file" accept="image/*" multiple onChange={agregarFotos} className="w-full cursor-pointer rounded-lg border border-line bg-white p-2 text-sm text-muted file:mr-3 file:rounded-md file:border-0 file:bg-brand-soft file:px-3 file:py-1.5 file:text-sm file:font-semibold file:text-brand" />
+                      ) : (
+                        <p className="rounded-lg bg-surface p-2 text-center text-xs text-muted">Llegaste al máximo de {MAX_FOTOS} fotos. Quita una para agregar otra.</p>
+                      )}
+                    </div>
+                    <div>
                       <label className="mb-1 block text-xs font-medium">Descripción</label>
                       <textarea required rows={3} value={form.descripcion} onChange={(e) => setForm({ ...form, descripcion: e.target.value })} className="w-full rounded-lg border border-line bg-white px-3 py-2 text-sm focus:border-brand focus:outline-none" />
                     </div>
                     <p className="text-xs text-muted">Editar no cambia los días que le quedan al anuncio.</p>
                     <div className="flex gap-2">
                       <button type="submit" disabled={ocupado} className="h-10 flex-1 rounded-lg bg-brand text-sm font-semibold text-white transition hover:bg-brand-dark disabled:opacity-60">
-                        {ocupado ? 'Guardando...' : 'Guardar cambios'}
+                        {ocupado ? progreso || 'Guardando...' : 'Guardar cambios'}
                       </button>
-                      <button type="button" onClick={() => setEditandoId(null)} disabled={ocupado} className="h-10 rounded-lg border border-line px-4 text-sm font-semibold text-muted hover:text-ink">
+                      <button type="button" onClick={cerrarEdicion} disabled={ocupado} className="h-10 rounded-lg border border-line px-4 text-sm font-semibold text-muted hover:text-ink">
                         Cancelar
                       </button>
                     </div>
@@ -273,7 +384,7 @@ export default function MisPublicaciones() {
                 )}
 
                 <div className="mt-3 flex flex-wrap gap-2 border-t border-line pt-3">
-                  <button onClick={() => (editandoId === pub.id ? setEditandoId(null) : empezarEdicion(pub))} disabled={ocupado} className={`${boton} border-line text-ink hover:bg-surface`}>
+                  <button onClick={() => (editandoId === pub.id ? cerrarEdicion() : empezarEdicion(pub))} disabled={ocupado} className={`${boton} border-line text-ink hover:bg-surface`}>
                     {editandoId === pub.id ? 'Cerrar edición' : 'Editar'}
                   </button>
                   {est === 'activa' && (
