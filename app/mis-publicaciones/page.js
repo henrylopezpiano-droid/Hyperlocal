@@ -36,6 +36,7 @@ export default function MisPublicaciones() {
   const [cargando, setCargando] = useState(true)
   const [trabajandoId, setTrabajandoId] = useState(null)
   const [aviso, setAviso] = useState('')
+  const [avisoAdmin, setAvisoAdmin] = useState(null) // { id, mensaje } aviso del administrador
   const [metricas, setMetricas] = useState({})
   const [editandoId, setEditandoId] = useState(null)
   const [fotosEdit, setFotosEdit] = useState([]) // { url } = ya subida · { file, previa } = nueva
@@ -61,6 +62,22 @@ export default function MisPublicaciones() {
       // Visitas y contactos de mis anuncios (si falla, simplemente no se muestran)
       const { data: m } = await supabase.from('metricas_totales').select('publicacion_id, visitas, contactos')
       if (m) setMetricas(Object.fromEntries(m.map((x) => [x.publicacion_id, x])))
+
+      // Aviso del administrador (si falla o no hay, simplemente no se muestra)
+      try {
+        const { data: av } = await supabase
+          .from('avisos')
+          .select('id, mensaje')
+          .eq('activo', true)
+          .order('created_at', { ascending: false })
+          .limit(1)
+        const a = av && av[0]
+        if (a && (data || []).length > 0) {
+          let oculto = null
+          try { oculto = localStorage.getItem('aviso-cerrado') } catch (e) {}
+          if (oculto !== String(a.id)) setAvisoAdmin(a)
+        }
+      } catch (e) {}
     }
     cargar()
   }, [])
@@ -228,6 +245,23 @@ export default function MisPublicaciones() {
       </div>
 
       {aviso && <p className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">{aviso}</p>}
+
+      {avisoAdmin && (
+        <div className="mb-4 rounded-xl border border-gold/40 bg-gold-bg p-4 text-sm text-gold-ink">
+          <p className="mb-1 text-xs font-bold uppercase tracking-wide">📢 Aviso de Mercado Hiperlocal</p>
+          <p className="whitespace-pre-line">{avisoAdmin.mensaje}</p>
+          <button
+            type="button"
+            onClick={() => {
+              try { localStorage.setItem('aviso-cerrado', String(avisoAdmin.id)) } catch (e) {}
+              setAvisoAdmin(null)
+            }}
+            className="mt-2 text-xs font-semibold underline"
+          >
+            Entendido, cerrar
+          </button>
+        </div>
+      )}
 
       {cargando ? (
         <div className="space-y-3">

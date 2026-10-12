@@ -2,6 +2,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '../../src/lib/supabase'
 import { telefonoDe, rutasEnStorage, precioTexto } from '../../src/lib/contacto'
+import PanelMensajes from './Mensajes'
 
 function formatearCelular(tel) {
   const d = (tel || '').replace(/\D/g, '')
@@ -48,7 +49,7 @@ export default function AdminPage() {
           .order('created_at', { ascending: false }),
         supabase
           .from('publicaciones')
-          .select('id, titulo, tipo, categoria, precio, estado, vence_at, created_at, barrio, imagen, imagenes, perfiles (nombre)')
+          .select('id, user_id, titulo, tipo, categoria, precio, estado, vence_at, created_at, barrio, imagen, imagenes, perfiles (nombre)')
           .order('created_at', { ascending: false }),
         supabase.from('metricas_totales').select('publicacion_id, visitas, contactos'),
       ])
@@ -222,6 +223,7 @@ export default function AdminPage() {
     { id: 'verificados', etiqueta: `Verificados (${verificados.length})` },
     { id: 'todos', etiqueta: `Todos (${perfiles.length})` },
     { id: 'anuncios', etiqueta: `Anuncios (${anuncios.length})` },
+    { id: 'mensajes', etiqueta: 'Mensajes' },
     { id: 'reportes', etiqueta: `Reportes (${reportes.length})` },
   ]
 
@@ -246,7 +248,7 @@ export default function AdminPage() {
         ))}
       </div>
 
-      {pestana !== 'reportes' && (
+      {pestana !== 'reportes' && pestana !== 'mensajes' && (
         <input
           type="search"
           value={busqueda}
@@ -273,7 +275,9 @@ export default function AdminPage() {
         </div>
       )}
 
-      {pestana === 'anuncios' ? (
+      {pestana === 'mensajes' ? (
+        <PanelMensajes anuncios={anuncios} perfiles={perfiles} />
+      ) : pestana === 'anuncios' ? (
         anunciosFiltrados.length === 0 ? (
           <div className="rounded-2xl border border-line bg-white p-8 text-center text-sm text-muted">
             {q ? 'Ningún anuncio coincide con la búsqueda.' : 'Todavía no hay anuncios.'}
