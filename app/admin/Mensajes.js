@@ -3,9 +3,12 @@ import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '../../src/lib/supabase'
 import { telefonoDe } from '../../src/lib/contacto'
 
-const PLANTILLA_INICIAL =
-  'Hola {nombre}, soy Henry de Mercado Hiperlocal 👋 Gracias por publicar "{anuncio}". Un favor: comparte el enlace de tu anuncio en tu estado de WhatsApp o en tu grupo de vecinos, así más gente lo ve y te escribe más rápido: {enlace}'
-const CLAVE_PLANTILLA = 'admin-plantilla-mensaje'
+const PLANTILLA_CON =
+  'Hola {nombre}, soy Henry, el administrador de Mercado Hiperlocal 👋 Gracias por publicar "{anuncio}". Un favor: comparte el enlace de tu anuncio en tu estado de WhatsApp o en tu grupo de vecinos, así más gente lo ve y te escribe más rápido: {enlace}'
+const PLANTILLA_SIN =
+  'Hola {nombre}, soy Henry, el administrador de Mercado Hiperlocal 👋 Ya eres vecino verificado, pero todavía no tienes anuncios activos. Publicar es gratis y toma un par de minutos: {enlace}'
+const CLAVE_CON = 'admin-plantilla-con-v2'
+const CLAVE_SIN = 'admin-plantilla-sin-v2'
 const CLAVE_ENVIADOS = 'admin-mensajes-enviados'
 
 function leer(clave, porDefecto) {
@@ -32,7 +35,11 @@ function vigente(a) {
 }
 
 export default function PanelMensajes({ anuncios, perfiles }) {
-  const [plantilla, setPlantilla] = useState(PLANTILLA_INICIAL)
+  const [plantillaCon, setPlantillaCon] = useState(PLANTILLA_CON)
+  const [plantillaSin, setPlantillaSin] = useState(PLANTILLA_SIN)
+  const [grupo, setGrupo] = useState('con') // 'con' | 'sin'
+  const [envio, setEnvio] = useState('todos') // 'todos' | 'pendientes' | 'enviados'
+  const [busqueda, setBusqueda] = useState('')
   const [enviados, setEnviados] = useState([])
   const [listo, setListo] = useState(false)
   const [avisoActual, setAvisoActual] = useState(null)
@@ -41,7 +48,8 @@ export default function PanelMensajes({ anuncios, perfiles }) {
   const [estadoAviso, setEstadoAviso] = useState({ texto: '', error: false })
 
   useEffect(() => {
-    setPlantilla(leer(CLAVE_PLANTILLA, PLANTILLA_INICIAL))
+    setPlantillaCon(leer(CLAVE_CON, PLANTILLA_CON))
+    setPlantillaSin(leer(CLAVE_SIN, PLANTILLA_SIN))
     try {
       const lista = JSON.parse(leer(CLAVE_ENVIADOS, '[]'))
       if (Array.isArray(lista)) setEnviados(lista)
@@ -64,50 +72,70 @@ export default function PanelMensajes({ anuncios, perfiles }) {
   }, [])
 
   useEffect(() => {
-    if (listo) guardar(CLAVE_PLANTILLA, plantilla)
-  }, [plantilla, listo])
+    if (listo) guardar(CLAVE_CON, plantillaCon)
+  }, [plantillaCon, listo])
+  useEffect(() => {
+    if (listo) guardar(CLAVE_SIN, plantillaSin)
+  }, [plantillaSin, listo])
   useEffect(() => {
     if (listo) guardar(CLAVE_ENVIADOS, JSON.stringify(enviados))
   }, [enviados, listo])
 
-  // Vecinos con al menos un anuncio vigente (activo y sin vencer)
-  const anunciantes = useMemo(() => {
+  // Vecinos verificados con celular, separados en: con anuncio vigente / sin anuncio vigente
+  const { con, sin } = useMemo(() => {
     const porUsuario = new Map()
     for (const a of anuncios) {
       if (!a.user_id || !vigente(a)) continue
       if (!porUsuario.has(a.user_id)) porUsuario.set(a.user_id, [])
       porUsuario.get(a.user_id).push(a)
     }
-    return [...porUsuario.entries()]
-      .map(([id, lista]) => {
-        const perfil = perfiles.find((p) => p.id === id)
-        const ordenados = lista.slice().sort((x, y) => new Date(y.created_at) - new Date(x.created_at))
-        return {
-          id,
-          nombre: perfil?.nombre || ordenados[0].perfiles?.nombre || '',
-          tel: telefonoDe(perfil),
-          n: lista.length,
-          principal: ordenados[0],
-        }
+    const ordenar = (x, y) => x.nombre.localeCompare(y.nombre, 'es')
+    const conLista = []
+    for (const [id, lista] of porUsuario.entries()) {
+      const perfil = perfiles.find((p) => p.id === id)
+      const ordenados = lista.slice().sort((x, y) => new Date(y.created_at) - new Date(x.created_at))
+      conLista.push({
+        id,
+        nombre: perfil?.nombre || ordenados[0].perfiles?.nombre || '',
+        tel: telefonoDe(perfil),
+        n: lista.length,
+        principal: ordenados[0],
       })
-      .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'))
+    }
+    const sinLista = perfiles
+      .filter((p) => p.verificado && !porUsuario.has(p.id))
+      .map((p) => ({ id: p.id, nombre: p.nombre || '', tel: telefonoDe(p), n: 0, principal: null }))
+    return { con: conLista.sort(ordenar), sin: sinLista.sort(ordenar) }
   }, [anuncios, perfiles])
 
   const origen = typeof window !== 'undefined' ? window.location.origin : ''
+  const plantilla = grupo === 'con' ? plantillaCon : plantillaSin
+  const setPlantilla = grupo === 'con' ? setPlantillaCon : setPlantillaSin
+  const plantillaInicial = grupo === 'con' ? PLANTILLA_CON : PLANTILLA_SIN
 
   function armar(u) {
+    const enlace = u.principal ? `${origen}/anuncio/${u.principal.id}` : origen
     return plantilla
       .replaceAll('{nombre}', primerNombre(u.nombre))
-      .replaceAll('{anuncio}', u.principal.titulo)
-      .replaceAll('{enlace}', `${origen}/anuncio/${u.principal.id}`)
+      .replaceAll('{anuncio}', u.principal ? u.principal.titulo : '')
+      .replaceAll('{enlace}', enlace)
   }
 
   function marcar(id) {
     setEnviados((prev) => (prev.includes(id) ? prev : [...prev, id]))
   }
 
-  const nEnviados = anunciantes.filter((u) => enviados.includes(u.id)).length
-  const ejemplo = anunciantes[0] ? armar(anunciantes[0]) : ''
+  const grupoLista = grupo === 'con' ? con : sin
+  const nEnviados = grupoLista.filter((u) => enviados.includes(u.id)).length
+  const q = busqueda.trim().toLowerCase()
+  const visibles = grupoLista.filter((u) => {
+    const hecho = enviados.includes(u.id)
+    if (envio === 'pendientes' && hecho) return false
+    if (envio === 'enviados' && !hecho) return false
+    if (q && !u.nombre.toLowerCase().includes(q)) return false
+    return true
+  })
+  const ejemplo = grupoLista[0] ? armar(grupoLista[0]) : ''
 
   async function publicarAviso() {
     const texto = textoAviso.trim()
@@ -143,61 +171,124 @@ export default function PanelMensajes({ anuncios, perfiles }) {
 
   return (
     <div className="space-y-4">
-      <div className="grid gap-4 md:grid-cols-2">
-        <section className="rounded-2xl border border-line bg-white p-4 shadow-sm">
+      {/* Filtro principal */}
+      <div className="flex flex-wrap gap-2">
+        {[
+          { id: 'con', etiqueta: `Con anuncios vigentes (${con.length})` },
+          { id: 'sin', etiqueta: `Sin anuncios vigentes (${sin.length})` },
+        ].map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            onClick={() => setGrupo(t.id)}
+            className={`h-10 rounded-lg border px-4 text-sm font-semibold transition ${
+              grupo === t.id ? 'border-brand bg-brand text-white' : 'border-line bg-white text-ink hover:border-brand'
+            }`}
+          >
+            {t.etiqueta}
+          </button>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
+        <section className="min-w-0 rounded-2xl border border-line bg-white p-4 shadow-sm">
           <h2 className="text-base font-extrabold">1. Tu mensaje</h2>
-          <p className="mt-1 text-xs text-muted">
-            Se reemplaza solo: <strong>{'{nombre}'}</strong> (su primer nombre), <strong>{'{anuncio}'}</strong> (el título de su
-            anuncio) y <strong>{'{enlace}'}</strong> (el enlace a su anuncio).
+          <p className="mt-1 break-words text-xs text-muted">
+            {grupo === 'con' ? 'Mensaje para vecinos con anuncios. ' : 'Mensaje para vecinos verificados sin anuncios. '}
+            Se reemplaza solo: <strong>{'{nombre}'}</strong> (su primer nombre)
+            {grupo === 'con' && (
+              <>
+                , <strong>{'{anuncio}'}</strong> (el título de su anuncio)
+              </>
+            )}{' '}
+            y <strong>{'{enlace}'}</strong> ({grupo === 'con' ? 'el enlace a su anuncio' : 'el enlace a la página'}).
           </p>
           <textarea
             value={plantilla}
             onChange={(e) => setPlantilla(e.target.value)}
-            rows={9}
-            className="mt-3 w-full rounded-lg border border-line bg-white px-3 py-2 text-sm focus:border-brand focus:outline-none"
+            rows={8}
+            className="mt-3 block w-full min-w-0 rounded-lg border border-line bg-white px-3 py-2 text-sm focus:border-brand focus:outline-none"
           />
           <button
             type="button"
-            onClick={() => setPlantilla(PLANTILLA_INICIAL)}
+            onClick={() => setPlantilla(plantillaInicial)}
             className="mt-2 text-xs font-semibold text-brand hover:underline"
           >
             Restaurar mensaje de ejemplo
           </button>
           {ejemplo && (
             <div className="mt-3 rounded-lg bg-surface p-3">
-              <p className="text-xs font-semibold text-muted">Así le llegaría a {primerNombre(anunciantes[0].nombre)}:</p>
-              <p className="mt-1 whitespace-pre-line break-words text-sm">{ejemplo}</p>
+              <p className="text-xs font-semibold text-muted">Así le llegaría a {primerNombre(grupoLista[0].nombre)}:</p>
+              <p className="mt-1 whitespace-pre-line text-sm [overflow-wrap:anywhere]">{ejemplo}</p>
             </div>
           )}
         </section>
 
-        <section className="rounded-2xl border border-line bg-white p-4 shadow-sm">
+        <section className="min-w-0 rounded-2xl border border-line bg-white p-4 shadow-sm">
           <div className="flex items-start justify-between gap-2">
             <div>
-              <h2 className="text-base font-extrabold">2. Anunciantes</h2>
+              <h2 className="text-base font-extrabold">2. Vecinos</h2>
               <p className="mt-1 text-xs text-muted">
-                {anunciantes.length} con anuncio vigente · <strong className="text-ink">{nEnviados}</strong> enviados en esta tanda
+                {grupoLista.length} {grupo === 'con' ? 'con anuncio vigente' : 'verificados sin anuncio vigente'} ·{' '}
+                <strong className="text-ink">{nEnviados}</strong> enviados en esta tanda
               </p>
             </div>
             {nEnviados > 0 && (
-              <button type="button" onClick={() => setEnviados([])} className="text-xs font-semibold text-brand hover:underline">
+              <button
+                type="button"
+                onClick={() => setEnviados((prev) => prev.filter((id) => !grupoLista.some((u) => u.id === id)))}
+                className="shrink-0 text-xs font-semibold text-brand hover:underline"
+              >
                 Tanda nueva
               </button>
             )}
           </div>
 
-          {anunciantes.length === 0 ? (
-            <p className="mt-4 rounded-lg bg-surface p-3 text-center text-sm text-muted">No hay anunciantes con anuncios vigentes.</p>
+          <input
+            type="search"
+            value={busqueda}
+            onChange={(e) => setBusqueda(e.target.value)}
+            placeholder="Buscar por nombre..."
+            className="mt-3 block h-10 w-full min-w-0 rounded-lg border border-line bg-white px-3 text-sm focus:border-brand focus:outline-none"
+          />
+          <div className="mt-2 flex flex-wrap gap-2">
+            {[
+              { id: 'todos', etiqueta: 'Todos' },
+              { id: 'pendientes', etiqueta: 'Por enviar' },
+              { id: 'enviados', etiqueta: 'Ya enviados' },
+            ].map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => setEnvio(t.id)}
+                className={`h-8 rounded-full border px-3 text-xs font-semibold transition ${
+                  envio === t.id ? 'border-brand bg-brand-soft text-brand-dark' : 'border-line text-muted hover:text-ink'
+                }`}
+              >
+                {t.etiqueta}
+              </button>
+            ))}
+          </div>
+
+          {visibles.length === 0 ? (
+            <p className="mt-4 rounded-lg bg-surface p-3 text-center text-sm text-muted">No hay vecinos con este filtro.</p>
           ) : (
-            <ul className="mt-3 max-h-[28rem] space-y-2 overflow-y-auto pr-1">
-              {anunciantes.map((u) => {
+            <ul className="mt-3 max-h-[60vh] space-y-2 overflow-y-auto pr-1">
+              {visibles.map((u) => {
                 const hecho = enviados.includes(u.id)
                 return (
-                  <li key={u.id} className={`flex items-center justify-between gap-2 rounded-lg border p-2 ${hecho ? 'border-brand/30 bg-brand-soft' : 'border-line'}`}>
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-semibold">{u.nombre || 'Sin nombre'}</p>
-                      <p className="truncate text-xs text-muted">
-                        {u.n} {u.n === 1 ? 'anuncio' : 'anuncios'} · {u.principal.titulo}
+                  <li
+                    key={u.id}
+                    className={`flex flex-col gap-2 rounded-lg border p-3 sm:flex-row sm:items-center sm:justify-between ${
+                      hecho ? 'border-brand/30 bg-brand-soft' : 'border-line'
+                    }`}
+                  >
+                    <div className="min-w-0 sm:flex-1">
+                      <p className="break-words text-sm font-semibold">{u.nombre || 'Sin nombre'}</p>
+                      <p className="line-clamp-2 break-words text-xs text-muted">
+                        {u.principal
+                          ? `${u.n} ${u.n === 1 ? 'anuncio' : 'anuncios'} · ${u.principal.titulo}`
+                          : 'Sin anuncios vigentes'}
                       </p>
                     </div>
                     {u.tel ? (
@@ -206,7 +297,7 @@ export default function PanelMensajes({ anuncios, perfiles }) {
                         target="_blank"
                         rel="noopener noreferrer"
                         onClick={() => marcar(u.id)}
-                        className={`h-9 shrink-0 rounded-lg px-3 text-xs font-semibold leading-9 transition ${
+                        className={`flex h-10 shrink-0 items-center justify-center rounded-lg px-4 text-sm font-semibold transition ${
                           hecho ? 'border border-brand text-brand-dark hover:bg-white' : 'bg-brand text-white hover:bg-brand-dark'
                         }`}
                       >
@@ -223,7 +314,7 @@ export default function PanelMensajes({ anuncios, perfiles }) {
         </section>
       </div>
 
-      <section className="rounded-2xl border border-line bg-white p-4 shadow-sm">
+      <section className="min-w-0 rounded-2xl border border-line bg-white p-4 shadow-sm">
         <h2 className="text-base font-extrabold">Aviso dentro de la app</h2>
         <p className="mt-1 text-xs text-muted">
           Lo ven en <strong>Mis publicaciones</strong> los vecinos que tienen anuncios. Solo hay un aviso activo a la vez.
@@ -234,7 +325,7 @@ export default function PanelMensajes({ anuncios, perfiles }) {
           rows={3}
           maxLength={600}
           placeholder="Ej. Comparte el enlace de tu anuncio en tu estado de WhatsApp para que más vecinos lo vean."
-          className="mt-3 w-full rounded-lg border border-line bg-white px-3 py-2 text-sm focus:border-brand focus:outline-none"
+          className="mt-3 block w-full min-w-0 rounded-lg border border-line bg-white px-3 py-2 text-sm focus:border-brand focus:outline-none"
         />
         <div className="mt-2 flex flex-wrap items-center gap-2">
           <button
