@@ -24,6 +24,14 @@ export default function AdminPage() {
   const [aviso, setAviso] = useState('')
   const [esError, setEsError] = useState(false)
 
+  // Evita el "salto" lateral al pasar de una pestaña larga a una corta (aparece/desaparece la barra de scroll)
+  useEffect(() => {
+    document.documentElement.style.scrollbarGutter = 'stable'
+    return () => {
+      document.documentElement.style.scrollbarGutter = ''
+    }
+  }, [])
+
   useEffect(() => {
     async function cargar() {
       const { data: { user } } = await supabase.auth.getUser()
@@ -228,7 +236,7 @@ export default function AdminPage() {
   ]
 
   return (
-    <div className="mx-auto max-w-3xl px-4 py-8">
+    <div className="mx-auto min-h-screen max-w-3xl px-4 py-8">
       <h1 className="text-2xl font-extrabold tracking-tight">Administración</h1>
       <p className="mb-5 mt-1 text-sm text-muted">
         Verifica vecinos escribiéndoles por WhatsApp, revisa los anuncios reportados y administra las cuentas.

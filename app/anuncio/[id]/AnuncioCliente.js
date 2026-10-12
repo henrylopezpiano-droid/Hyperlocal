@@ -20,6 +20,7 @@ export default function AnuncioCliente({ id }) {
   const [pub, setPub] = useState(null)
   const [estado, setEstado] = useState('cargando') // cargando | noExiste | ok
   const [sesion, setSesion] = useState(false)
+  const [miId, setMiId] = useState(null)
   const [miVerificado, setMiVerificado] = useState(false)
   const [reportando, setReportando] = useState(false)
   const [copiado, setCopiado] = useState(false)
@@ -30,6 +31,7 @@ export default function AnuncioCliente({ id }) {
     async function cargar() {
       const { data: { session } } = await supabase.auth.getSession()
       setSesion(!!session)
+      setMiId(session ? session.user.id : null)
       if (session) {
         const { data: yo } = await supabase.from('perfiles').select('verificado').eq('id', session.user.id).maybeSingle()
         setMiVerificado(!!yo?.verificado)
@@ -202,7 +204,23 @@ export default function AnuncioCliente({ id }) {
             <p className="mt-1 text-xs text-muted">Publicado el {new Date(pub.created_at).toLocaleDateString('es-CO')}</p>
           )}
 
-          {!noDisponible && (
+          {miId && pub.user_id === miId && (
+            <div className="mt-5">
+              <a
+                href={`/mis-publicaciones?editar=${pub.id}`}
+                className="flex h-12 w-full items-center justify-center rounded-xl bg-brand text-sm font-bold text-white transition hover:bg-brand-dark"
+              >
+                ✏️ Editar mi anuncio
+              </a>
+              {fotosDe(pub).length === 0 && (
+                <p className="mt-2 rounded-lg bg-gold-bg px-3 py-2 text-xs text-gold-ink">
+                  📷 Este anuncio no tiene foto. Agrégala: así lo ven y te contactan más.
+                </p>
+              )}
+            </div>
+          )}
+
+          {!noDisponible && !(miId && pub.user_id === miId) && (
             <div className="mt-5">
               <BotonContacto sesion={sesion} verificado={miVerificado} vendedor={vendedor} titulo={pub.titulo} publicacionId={pub.id} volver={rutaVolver} grande />
             </div>

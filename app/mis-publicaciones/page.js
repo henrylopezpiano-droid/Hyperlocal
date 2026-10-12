@@ -47,7 +47,7 @@ export default function MisPublicaciones() {
     async function cargar() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) {
-        window.location.href = '/login?volver=/mis-publicaciones'
+        window.location.href = '/login?volver=' + encodeURIComponent('/mis-publicaciones' + window.location.search)
         return
       }
       const { data, error } = await supabase
@@ -58,6 +58,16 @@ export default function MisPublicaciones() {
       if (error) setAviso('No se pudieron cargar tus publicaciones: ' + error.message)
       else setPublicaciones(data || [])
       setCargando(false)
+
+      // Si llegas con ?editar=ID (desde tu anuncio o desde un mensaje), se abre el editor de ese anuncio
+      try {
+        const ed = new URLSearchParams(window.location.search).get('editar')
+        const m = ed && (data || []).find((p) => String(p.id) === ed)
+        if (m) {
+          empezarEdicion(m)
+          setTimeout(() => document.getElementById('anuncio-' + m.id)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 200)
+        }
+      } catch (_) {}
 
       // Visitas y contactos de mis anuncios (si falla, simplemente no se muestran)
       const { data: m } = await supabase.from('metricas_totales').select('publicacion_id, visitas, contactos')
@@ -130,6 +140,10 @@ export default function MisPublicaciones() {
   }
 
   function quitarFoto(i) {
+    if (fotosEdit.length === 1) {
+      setAviso('Tu anuncio debe tener al menos una foto. Agrega la nueva y luego quita esta.')
+      return
+    }
     if (fotosEdit[i].previa) URL.revokeObjectURL(fotosEdit[i].previa)
     setFotosEdit(fotosEdit.filter((_, j) => j !== i))
   }
@@ -142,6 +156,10 @@ export default function MisPublicaciones() {
   // así que editar un anuncio no reinicia ni alarga sus 30 días.
   async function guardarEdicion(e, pub) {
     e.preventDefault()
+    if (fotosEdit.length === 0) {
+      setAviso('Tu anuncio necesita al menos una foto. Agrégala y vuelve a guardar.')
+      return
+    }
     const aConvenir = form.modo === 'convenir' && form.tipo === 'servicio'
     const precio = form.modo === 'gratis' ? 0 : aConvenir ? null : parseInt(form.precio, 10)
     if (form.modo !== 'gratis' && !aConvenir && (!precio || precio <= 0)) {
@@ -278,7 +296,7 @@ export default function MisPublicaciones() {
             const est = estadoDe(pub)
             const ocupado = trabajandoId === pub.id
             return (
-              <li key={pub.id} className={`rounded-xl border border-gold-soft bg-white p-3 ${est !== 'activa' ? 'opacity-90' : ''}`}>
+              <li key={pub.id} id={`anuncio-${pub.id}`} className={`scroll-mt-20 rounded-xl border border-gold-soft bg-white p-3 ${est !== 'activa' ? 'opacity-90' : ''}`}>
                 <div className="flex items-center gap-4">
                   <div className="h-20 w-20 flex-none overflow-hidden rounded-lg bg-surface">
                     {pub.imagen ? (
@@ -328,6 +346,15 @@ export default function MisPublicaciones() {
                     </div>
                   </div>
                 </div>
+
+                {fotosDe(pub).length === 0 && editandoId !== pub.id && (
+                  <p className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg bg-gold-bg px-3 py-2 text-xs text-gold-ink">
+                    <span>📷 Agrega una foto a tu {pub.tipo === 'servicio' ? 'servicio' : 'producto'}: así lo ven y te contactan más.</span>
+                    <button type="button" onClick={() => empezarEdicion(pub)} className="font-bold underline">
+                      Agregar foto
+                    </button>
+                  </p>
+                )}
 
                 {editandoId === pub.id && (
                   <form onSubmit={(e) => guardarEdicion(e, pub)} className="mt-3 space-y-3 border-t border-line pt-3">

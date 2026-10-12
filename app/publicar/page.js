@@ -95,6 +95,11 @@ export default function PublicarPage() {
       return
     }
 
+    if (fotos.length === 0) {
+      avisar('Agrega al menos una foto de tu anuncio. Con foto te contactan mucho más.', true)
+      return
+    }
+
     setCargando(true)
 
     const subidos = [] // rutas ya subidas a Storage
@@ -290,7 +295,7 @@ export default function PublicarPage() {
 
           <div>
             <label className="mb-1 block text-sm font-medium">
-              Fotos <span className="font-normal text-muted">(hasta {MAX_FOTOS})</span>
+              Fotos <span className="font-normal text-muted">(mínimo 1, hasta {MAX_FOTOS})</span>
             </label>
 
             {previas.length > 0 && (

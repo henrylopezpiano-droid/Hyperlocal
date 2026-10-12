@@ -1,12 +1,15 @@
 'use client'
 import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '../../src/lib/supabase'
-import { telefonoDe } from '../../src/lib/contacto'
+import { telefonoDe, fotosDe } from '../../src/lib/contacto'
 
 const PLANTILLA_CON =
   'Hola {nombre}, soy Henry, el administrador de Mercado Hiperlocal 👋 Gracias por publicar "{anuncio}". Un favor: comparte el enlace de tu anuncio en tu estado de WhatsApp o en tu grupo de vecinos, así más gente lo ve y te escribe más rápido: {enlace}'
 const PLANTILLA_SIN =
   'Hola {nombre}, soy Henry, el administrador de Mercado Hiperlocal 👋 Ya eres vecino verificado, pero todavía no tienes anuncios activos. Publicar es gratis y toma un par de minutos: {enlace}'
+const PLANTILLA_FOTO =
+  'Hola {nombre}, soy Henry, el administrador de Mercado Hiperlocal 👋 Vi que tu anuncio "{anuncio}" todavía no tiene foto. Con foto se ve mucho mejor y te escriben más. Entra aquí y toca "Agregar foto" (toma un minuto): {enlace}'
+const CLAVE_FOTO = 'admin-plantilla-foto-v1'
 const CLAVE_CON = 'admin-plantilla-con-v2'
 const CLAVE_SIN = 'admin-plantilla-sin-v2'
 const CLAVE_ENVIADOS = 'admin-mensajes-enviados'
@@ -37,7 +40,8 @@ function vigente(a) {
 export default function PanelMensajes({ anuncios, perfiles }) {
   const [plantillaCon, setPlantillaCon] = useState(PLANTILLA_CON)
   const [plantillaSin, setPlantillaSin] = useState(PLANTILLA_SIN)
-  const [grupo, setGrupo] = useState('con') // 'con' | 'sin'
+  const [plantillaFoto, setPlantillaFoto] = useState(PLANTILLA_FOTO)
+  const [grupo, setGrupo] = useState('con') // 'con' | 'sin' | 'foto'
   const [envio, setEnvio] = useState('todos') // 'todos' | 'pendientes' | 'enviados'
   const [busqueda, setBusqueda] = useState('')
   const [enviados, setEnviados] = useState([])
@@ -50,6 +54,7 @@ export default function PanelMensajes({ anuncios, perfiles }) {
   useEffect(() => {
     setPlantillaCon(leer(CLAVE_CON, PLANTILLA_CON))
     setPlantillaSin(leer(CLAVE_SIN, PLANTILLA_SIN))
+    setPlantillaFoto(leer(CLAVE_FOTO, PLANTILLA_FOTO))
     try {
       const lista = JSON.parse(leer(CLAVE_ENVIADOS, '[]'))
       if (Array.isArray(lista)) setEnviados(lista)
@@ -78,11 +83,14 @@ export default function PanelMensajes({ anuncios, perfiles }) {
     if (listo) guardar(CLAVE_SIN, plantillaSin)
   }, [plantillaSin, listo])
   useEffect(() => {
+    if (listo) guardar(CLAVE_FOTO, plantillaFoto)
+  }, [plantillaFoto, listo])
+  useEffect(() => {
     if (listo) guardar(CLAVE_ENVIADOS, JSON.stringify(enviados))
   }, [enviados, listo])
 
   // Vecinos verificados con celular, separados en: con anuncio vigente / sin anuncio vigente
-  const { con, sin } = useMemo(() => {
+  const { con, sin, foto } = useMemo(() => {
     const porUsuario = new Map()
     for (const a of anuncios) {
       if (!a.user_id || !vigente(a)) continue
@@ -105,16 +113,39 @@ export default function PanelMensajes({ anuncios, perfiles }) {
     const sinLista = perfiles
       .filter((p) => p.verificado && !porUsuario.has(p.id))
       .map((p) => ({ id: p.id, nombre: p.nombre || '', tel: telefonoDe(p), n: 0, principal: null }))
-    return { con: conLista.sort(ordenar), sin: sinLista.sort(ordenar) }
+    // Vecinos con algún anuncio vigente SIN foto (se le muestra el más reciente sin foto)
+    const sinFoto = new Map()
+    for (const a of anuncios) {
+      if (!a.user_id || !vigente(a) || fotosDe(a).length > 0) continue
+      if (!sinFoto.has(a.user_id)) sinFoto.set(a.user_id, [])
+      sinFoto.get(a.user_id).push(a)
+    }
+    const fotoLista = []
+    for (const [id, lista] of sinFoto.entries()) {
+      const perfil = perfiles.find((p) => p.id === id)
+      const ordenados = lista.slice().sort((x, y) => new Date(y.created_at) - new Date(x.created_at))
+      fotoLista.push({
+        id,
+        nombre: perfil?.nombre || ordenados[0].perfiles?.nombre || '',
+        tel: telefonoDe(perfil),
+        n: lista.length,
+        principal: ordenados[0],
+      })
+    }
+    return { con: conLista.sort(ordenar), sin: sinLista.sort(ordenar), foto: fotoLista.sort(ordenar) }
   }, [anuncios, perfiles])
 
   const origen = typeof window !== 'undefined' ? window.location.origin : ''
-  const plantilla = grupo === 'con' ? plantillaCon : plantillaSin
-  const setPlantilla = grupo === 'con' ? setPlantillaCon : setPlantillaSin
-  const plantillaInicial = grupo === 'con' ? PLANTILLA_CON : PLANTILLA_SIN
+  const plantilla = grupo === 'con' ? plantillaCon : grupo === 'sin' ? plantillaSin : plantillaFoto
+  const setPlantilla = grupo === 'con' ? setPlantillaCon : grupo === 'sin' ? setPlantillaSin : setPlantillaFoto
+  const plantillaInicial = grupo === 'con' ? PLANTILLA_CON : grupo === 'sin' ? PLANTILLA_SIN : PLANTILLA_FOTO
 
   function armar(u) {
-    const enlace = u.principal ? `${origen}/anuncio/${u.principal.id}` : origen
+    const enlace = !u.principal
+      ? origen
+      : grupo === 'foto'
+        ? `${origen}/mis-publicaciones?editar=${u.principal.id}` // abre directo el editor
+        : `${origen}/anuncio/${u.principal.id}`
     return plantilla
       .replaceAll('{nombre}', primerNombre(u.nombre))
       .replaceAll('{anuncio}', u.principal ? u.principal.titulo : '')
@@ -125,7 +156,7 @@ export default function PanelMensajes({ anuncios, perfiles }) {
     setEnviados((prev) => (prev.includes(id) ? prev : [...prev, id]))
   }
 
-  const grupoLista = grupo === 'con' ? con : sin
+  const grupoLista = grupo === 'con' ? con : grupo === 'sin' ? sin : foto
   const nEnviados = grupoLista.filter((u) => enviados.includes(u.id)).length
   const q = busqueda.trim().toLowerCase()
   const visibles = grupoLista.filter((u) => {
@@ -176,6 +207,7 @@ export default function PanelMensajes({ anuncios, perfiles }) {
         {[
           { id: 'con', etiqueta: `Con anuncios vigentes (${con.length})` },
           { id: 'sin', etiqueta: `Sin anuncios vigentes (${sin.length})` },
+          { id: 'foto', etiqueta: `Anuncio sin foto (${foto.length})` },
         ].map((t) => (
           <button
             key={t.id}
@@ -194,14 +226,18 @@ export default function PanelMensajes({ anuncios, perfiles }) {
         <section className="min-w-0 rounded-2xl border border-line bg-white p-4 shadow-sm">
           <h2 className="text-base font-extrabold">1. Tu mensaje</h2>
           <p className="mt-1 break-words text-xs text-muted">
-            {grupo === 'con' ? 'Mensaje para vecinos con anuncios. ' : 'Mensaje para vecinos verificados sin anuncios. '}
+            {grupo === 'con'
+              ? 'Mensaje para vecinos con anuncios. '
+              : grupo === 'sin'
+                ? 'Mensaje para vecinos verificados sin anuncios. '
+                : 'Mensaje para vecinos con un anuncio vigente sin foto. '}
             Se reemplaza solo: <strong>{'{nombre}'}</strong> (su primer nombre)
-            {grupo === 'con' && (
+            {grupo !== 'sin' && (
               <>
                 , <strong>{'{anuncio}'}</strong> (el título de su anuncio)
               </>
             )}{' '}
-            y <strong>{'{enlace}'}</strong> ({grupo === 'con' ? 'el enlace a su anuncio' : 'el enlace a la página'}).
+            y <strong>{'{enlace}'}</strong> ({grupo === 'con' ? 'el enlace a su anuncio' : grupo === 'foto' ? 'abre directo el editor de ese anuncio' : 'el enlace a la página'}).
           </p>
           <textarea
             value={plantilla}
@@ -229,7 +265,7 @@ export default function PanelMensajes({ anuncios, perfiles }) {
             <div>
               <h2 className="text-base font-extrabold">2. Vecinos</h2>
               <p className="mt-1 text-xs text-muted">
-                {grupoLista.length} {grupo === 'con' ? 'con anuncio vigente' : 'verificados sin anuncio vigente'} ·{' '}
+                {grupoLista.length} {grupo === 'con' ? 'con anuncio vigente' : grupo === 'sin' ? 'verificados sin anuncio vigente' : 'con anuncio vigente sin foto'} ·{' '}
                 <strong className="text-ink">{nEnviados}</strong> enviados en esta tanda
               </p>
             </div>
