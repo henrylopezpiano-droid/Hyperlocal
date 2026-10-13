@@ -325,15 +325,16 @@ export default function Home() {
           )}
         </div>
       ) : (
-        <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 lg:grid-cols-4">
           {filtradas.map((pub) => {
             const vendedor = pub.perfiles || {}
             return (
               <article key={pub.id} className="flex flex-col overflow-hidden rounded-xl border border-gold-soft bg-white transition hover:border-gold hover:shadow-md">
-                <div className="relative aspect-[3/2] overflow-hidden bg-surface sm:aspect-[4/3]">
+                {/* La foto manda: cuadrada, con el precio sobre la foto */}
+                <div className="relative aspect-square overflow-hidden bg-surface">
                   <Link href={`/anuncio/${pub.id}`} className="absolute inset-0 block" aria-label={`Ver ${pub.titulo}`}>
                     {pub.imagen ? (
-                      <img src={pub.imagen} alt={pub.titulo} className="h-full w-full object-cover" />
+                      <img src={pub.imagen} alt={pub.titulo} loading="lazy" className="h-full w-full object-cover" />
                     ) : (
                       <div className="grid h-full place-items-center text-xs text-muted">Sin foto</div>
                     )}
@@ -349,31 +350,24 @@ export default function Home() {
                   >
                     <Bandera />
                   </button>
+                  <span
+                    className={`pointer-events-none absolute bottom-2 left-2 z-10 rounded-md px-2 py-0.5 font-extrabold shadow-sm ${
+                      pub.precio === 0 ? 'bg-gold-bg text-gold-ink' : 'bg-black/70 text-white'
+                    } ${pub.precio == null ? 'text-xs' : 'text-sm'}`}
+                  >
+                    {precioTexto(pub.precio)}
+                  </span>
                 </div>
 
-                <div className="flex flex-1 flex-col p-3">
+                <div className="flex flex-1 flex-col p-2.5">
                   <Link href={`/anuncio/${pub.id}`} className="hover:underline">
-                    <h3 className="line-clamp-2 text-sm font-bold sm:line-clamp-1">{pub.titulo}</h3>
+                    <h3 className="line-clamp-1 text-sm font-bold">{pub.titulo}</h3>
                   </Link>
-                  <p className="mt-0.5 line-clamp-2 text-xs leading-relaxed text-muted">{pub.descripcion}</p>
 
-                  {pub.precio === 0 ? (
-                    <p className="mt-2">
-                      <span className="rounded-md bg-gold-bg px-2 py-0.5 text-sm font-extrabold text-gold-ink">Gratis</span>
-                    </p>
-                  ) : (
-                    <p className={`mt-2 font-extrabold text-brand ${pub.precio == null ? 'text-sm' : 'text-base'}`}>{precioTexto(pub.precio)}</p>
-                  )}
-
-                  <p className="mb-3 mt-0.5 flex flex-col text-xs text-muted sm:flex-row sm:items-center sm:gap-1">
-                    <span className="flex min-w-0 items-center gap-1">
-                      <span className="truncate">{vendedor.nombre || 'Vecino'}</span>
-                      {vendedor.verificado && <Check />}
-                    </span>
-                    <span className="truncate">
-                      <span className="hidden sm:inline">· </span>
-                      {pub.barrio || vendedor.barrio || 'Zona'}
-                    </span>
+                  <p className="mb-2.5 mt-0.5 flex min-w-0 items-center gap-1 text-xs text-muted">
+                    <span className="truncate">{vendedor.nombre || 'Vecino'}</span>
+                    {vendedor.verificado && <Check />}
+                    <span className="truncate">· {pub.barrio || vendedor.barrio || 'Zona'}</span>
                   </p>
 
                   <BotonContacto
