@@ -16,7 +16,7 @@ export default function BotonContacto({ sesion, verificado, vendedor, titulo, pu
   }
   if (tel) {
     return (
-      <a href={enlaceWhatsApp(tel, vendedor?.nombre, titulo)} onClick={() => publicacionId && registrarEvento(supabase, publicacionId, 'contacto')} target="_blank" rel="noopener noreferrer" className={`${base} bg-brand text-white transition hover:bg-brand-dark`}>
+      <a href={enlaceWhatsApp(tel, vendedor?.nombre, titulo, publicacionId)} onClick={() => publicacionId && registrarEvento(supabase, publicacionId, 'contacto')} target="_blank" rel="noopener noreferrer" className={`${base} bg-brand text-white transition hover:bg-brand-dark`}>
         Escribir por WhatsApp
       </a>
     )

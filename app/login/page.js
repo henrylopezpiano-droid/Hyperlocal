@@ -147,8 +147,9 @@ export default function LoginPage() {
           {registrando && (
             <>
               <div>
-                <label className="mb-1 block text-sm font-medium">Nombre completo</label>
+                <label className="mb-1 block text-sm font-medium">Nombre y apellido</label>
                 <input type="text" value={nombre} onChange={(e) => setNombre(e.target.value)} required className={campo} />
+                <p className="mt-1 text-xs text-muted">Así te verán los vecinos en tus anuncios. Basta un nombre y un apellido.</p>
               </div>
 
               <div>

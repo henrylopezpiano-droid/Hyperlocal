@@ -36,6 +36,10 @@ export default function MisPublicaciones() {
   const [cargando, setCargando] = useState(true)
   const [trabajandoId, setTrabajandoId] = useState(null)
   const [aviso, setAviso] = useState('')
+  const [miNombre, setMiNombre] = useState(null) // null = aún no carga
+  const [editandoNombre, setEditandoNombre] = useState(false)
+  const [nombreNuevo, setNombreNuevo] = useState('')
+  const [guardandoNombre, setGuardandoNombre] = useState(false)
   const [avisoAdmin, setAvisoAdmin] = useState(null) // { id, mensaje } aviso del administrador
   const [metricas, setMetricas] = useState({})
   const [editandoId, setEditandoId] = useState(null)
@@ -72,6 +76,10 @@ export default function MisPublicaciones() {
       // Visitas y contactos de mis anuncios (si falla, simplemente no se muestran)
       const { data: m } = await supabase.from('metricas_totales').select('publicacion_id, visitas, contactos')
       if (m) setMetricas(Object.fromEntries(m.map((x) => [x.publicacion_id, x])))
+
+      // Mi nombre público (si falla, simplemente no se muestra el bloque)
+      const { data: yo } = await supabase.from('perfiles').select('nombre').eq('id', user.id).maybeSingle()
+      if (yo) setMiNombre(yo.nombre || '')
 
       // Aviso del administrador (si falla o no hay, simplemente no se muestra)
       try {
@@ -248,6 +256,26 @@ export default function MisPublicaciones() {
     setTrabajandoId(null)
   }
 
+  async function guardarNombre(e) {
+    e.preventDefault()
+    const limpio = nombreNuevo.trim().replace(/\s+/g, ' ')
+    if (limpio.length < 2) {
+      setAviso('Escribe tu nombre (mínimo 2 letras).')
+      return
+    }
+    setGuardandoNombre(true)
+    setAviso('')
+    const { data, error } = await supabase.rpc('actualizar_mi_nombre', { p_nombre: limpio })
+    if (error || data !== true) {
+      setAviso('No se pudo cambiar el nombre. Intenta de nuevo.')
+    } else {
+      setMiNombre(limpio)
+      setEditandoNombre(false)
+      // Los anuncios que ya estén en pantalla no cargan el nombre, así que no hace falta actualizarlos
+    }
+    setGuardandoNombre(false)
+  }
+
   const boton = 'h-9 rounded-lg border px-3 text-xs font-semibold transition disabled:opacity-50'
 
   return (
@@ -263,6 +291,47 @@ export default function MisPublicaciones() {
       </div>
 
       {aviso && <p className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">{aviso}</p>}
+
+      {miNombre !== null && (
+        <div className="mb-4 rounded-xl border border-line bg-white p-3 text-sm">
+          {!editandoNombre ? (
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="min-w-0 break-words">
+                <span className="text-muted">Tu nombre en los anuncios: </span>
+                <strong>{miNombre || 'Sin nombre'}</strong>
+              </p>
+              <button
+                type="button"
+                onClick={() => { setNombreNuevo(miNombre); setEditandoNombre(true); setAviso('') }}
+                className="text-xs font-semibold text-brand hover:underline"
+              >
+                Cambiar nombre
+              </button>
+            </div>
+          ) : (
+            <form onSubmit={guardarNombre} className="space-y-2">
+              <label className="block text-xs font-medium">Tu nombre en los anuncios</label>
+              <input
+                type="text"
+                value={nombreNuevo}
+                onChange={(e) => setNombreNuevo(e.target.value)}
+                maxLength={60}
+                autoFocus
+                className="block h-10 w-full min-w-0 rounded-lg border border-line bg-white px-3 text-sm focus:border-brand focus:outline-none"
+              />
+              <p className="text-xs text-muted">Basta un nombre y un apellido. Se actualiza en todos tus anuncios.</p>
+              <div className="flex gap-2">
+                <button type="submit" disabled={guardandoNombre} className="h-9 rounded-lg bg-brand px-4 text-xs font-semibold text-white transition hover:bg-brand-dark disabled:opacity-60">
+                  {guardandoNombre ? 'Guardando...' : 'Guardar'}
+                </button>
+                <button type="button" onClick={() => setEditandoNombre(false)} className="h-9 rounded-lg border border-line px-4 text-xs font-semibold text-muted hover:text-ink">
+                  Cancelar
+                </button>
+              </div>
+            </form>
+          )}
+        </div>
+      )}
 
       {avisoAdmin && (
         <div className="mb-4 rounded-xl border border-gold/40 bg-gold-bg p-4 text-sm text-gold-ink">
