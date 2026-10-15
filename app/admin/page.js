@@ -227,12 +227,12 @@ export default function AdminPage() {
   }
 
   const pestanas = [
-    { id: 'pendientes', etiqueta: `Pendientes (${pendientes.length})` },
-    { id: 'verificados', etiqueta: `Verificados (${verificados.length})` },
-    { id: 'todos', etiqueta: `Todos (${perfiles.length})` },
-    { id: 'anuncios', etiqueta: `Anuncios (${anuncios.length})` },
-    { id: 'mensajes', etiqueta: 'Mensajes' },
-    { id: 'reportes', etiqueta: `Reportes (${reportes.length})` },
+    { id: 'pendientes', nombre: 'Pendientes', n: pendientes.length },
+    { id: 'verificados', nombre: 'Verificados', n: verificados.length },
+    { id: 'todos', nombre: 'Todos', n: perfiles.length },
+    { id: 'anuncios', nombre: 'Anuncios', n: anuncios.length },
+    { id: 'mensajes', nombre: 'Mensajes' },
+    { id: 'reportes', nombre: 'Reportes', n: reportes.length },
   ]
 
   return (
@@ -242,16 +242,17 @@ export default function AdminPage() {
         Verifica vecinos escribiéndoles por WhatsApp, revisa los anuncios reportados y administra las cuentas.
       </p>
 
-      <div className="mb-4 flex flex-wrap gap-2">
+      <div className="mb-4 grid grid-cols-3 gap-2 sm:flex sm:flex-wrap">
         {pestanas.map((t) => (
           <button
             key={t.id}
             onClick={() => { setPestana(t.id); setBusqueda('') }}
-            className={`h-10 rounded-lg px-4 text-sm font-semibold transition ${
+            className={`flex h-14 flex-col items-center justify-center rounded-lg px-1 text-xs font-semibold leading-tight transition sm:h-10 sm:flex-row sm:gap-1.5 sm:px-4 sm:text-sm ${
               pestana === t.id ? 'bg-brand text-white' : 'border border-line bg-white text-muted hover:text-ink'
             }`}
           >
-            {t.etiqueta}
+            <span>{t.nombre}</span>
+            {t.n !== undefined && <span className="font-extrabold">({t.n})</span>}
           </button>
         ))}
       </div>

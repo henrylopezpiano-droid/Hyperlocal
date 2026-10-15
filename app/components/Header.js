@@ -26,6 +26,45 @@ export default function Header() {
   const [esAdmin, setEsAdmin] = useState(false)
   const [abierto, setAbierto] = useState(false)
   const menuRef = useRef(null)
+  const [instalable, setInstalable] = useState(false) // el navegador permite instalar la app (o es iPhone)
+  const [esIos, setEsIos] = useState(false)
+  const [pasosIos, setPasosIos] = useState(false)
+
+  // Opción "Instalar app" del menú: solo aparece si se puede instalar y aún no está instalada
+  useEffect(() => {
+    const instalada = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true
+    if (instalada) return
+    if (/iphone|ipad|ipod/i.test(navigator.userAgent)) {
+      setEsIos(true)
+      setInstalable(true)
+      return
+    }
+    if (window.__pwaEvento) setInstalable(true)
+    const alListo = () => setInstalable(true)
+    const alInstalar = () => setInstalable(false)
+    window.addEventListener('pwa-listo', alListo)
+    window.addEventListener('appinstalled', alInstalar)
+    return () => {
+      window.removeEventListener('pwa-listo', alListo)
+      window.removeEventListener('appinstalled', alInstalar)
+    }
+  }, [])
+
+  async function instalarApp() {
+    if (esIos) {
+      setPasosIos(true)
+      return
+    }
+    const ev = window.__pwaEvento
+    if (!ev) return
+    setAbierto(false)
+    ev.prompt()
+    try {
+      await ev.userChoice
+    } catch (_) {}
+    window.__pwaEvento = null
+    setInstalable(false)
+  }
 
   useEffect(() => {
     async function actualizar(session) {
@@ -132,6 +171,18 @@ export default function Header() {
                     <Link role="menuitem" href="/mis-publicaciones" onClick={() => setAbierto(false)} className={itemMenu}>
                       Mis publicaciones
                     </Link>
+                    {instalable && (
+                      <div className="border-t border-line">
+                        <button role="menuitem" onClick={instalarApp} className={itemMenu}>
+                          📲 Instalar app
+                        </button>
+                        {pasosIos && (
+                          <p className="px-4 pb-3 text-xs text-muted">
+                            En <strong>Safari</strong>, toca <strong>Compartir</strong> y elige <strong>Agregar a pantalla de inicio</strong>.
+                          </p>
+                        )}
+                      </div>
+                    )}
                     {esAdmin && (
                       <Link role="menuitem" href="/admin" onClick={() => setAbierto(false)} className={itemMenu}>
                         Panel de administrador
