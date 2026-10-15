@@ -2,6 +2,7 @@ import './globals.css'
 import { Plus_Jakarta_Sans } from 'next/font/google'
 import Header from './components/Header'
 import RegistrarPWA from './components/RegistrarPWA'
+import Splash from './components/Splash'
 
 const jakarta = Plus_Jakarta_Sans({
   subsets: ['latin'],
@@ -24,6 +25,7 @@ export default function RootLayout({ children }) {
   return (
     <html lang="es" className={jakarta.variable}>
       <body>
+        <Splash />
         <RegistrarPWA />
         <Header />
         <main>{children}</main>
