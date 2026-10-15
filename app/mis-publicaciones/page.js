@@ -6,6 +6,7 @@ import { rutasEnStorage, rutaEnStorage, fotosDe, precioTexto } from '../../src/l
 import { comprimirImagen } from '../../src/lib/imagenes'
 import { CATEGORIAS, CATEGORIA_INMUEBLES } from '../../src/lib/categorias'
 import AvisoInmueble from '../components/AvisoInmueble'
+import InstalarApp from '../components/InstalarApp'
 
 const DIA = 24 * 60 * 60 * 1000
 const MAX_FOTOS = 3
@@ -51,7 +52,7 @@ export default function MisPublicaciones() {
     async function cargar() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) {
-        window.location.href = '/login?volver=' + encodeURIComponent('/mis-publicaciones' + window.location.search)
+        window.location.href = '/login?volver=' + encodeURIComponent('/mis-publicaciones' + window.location.search + window.location.hash)
         return
       }
       const { data, error } = await supabase
@@ -62,6 +63,14 @@ export default function MisPublicaciones() {
       if (error) setAviso('No se pudieron cargar tus publicaciones: ' + error.message)
       else setPublicaciones(data || [])
       setCargando(false)
+
+      // Si llegas con #anuncio-ID (por ejemplo, desde un aviso de "vence pronto"), baja hasta ese anuncio
+      try {
+        const ancla = window.location.hash
+        if (ancla.startsWith('#anuncio-')) {
+          setTimeout(() => document.getElementById(ancla.slice(1))?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 300)
+        }
+      } catch (_) {}
 
       // Si llegas con ?editar=ID (desde tu anuncio o desde un mensaje), se abre el editor de ese anuncio
       try {
@@ -319,7 +328,7 @@ export default function MisPublicaciones() {
                 autoFocus
                 className="block h-10 w-full min-w-0 rounded-lg border border-line bg-white px-3 text-sm focus:border-brand focus:outline-none"
               />
-              <p className="text-xs text-muted">Basta un nombre y un apellido. Se actualiza en todos tus anuncios.</p>
+              <p className="text-xs text-muted">Usa tu nombre y apellido, o el nombre de tu negocio. Se actualiza en todos tus anuncios.</p>
               <div className="flex gap-2">
                 <button type="submit" disabled={guardandoNombre} className="h-9 rounded-lg bg-brand px-4 text-xs font-semibold text-white transition hover:bg-brand-dark disabled:opacity-60">
                   {guardandoNombre ? 'Guardando...' : 'Guardar'}
@@ -332,6 +341,8 @@ export default function MisPublicaciones() {
           )}
         </div>
       )}
+
+      <InstalarApp />
 
       {avisoAdmin && (
         <div className="mb-4 rounded-xl border border-gold/40 bg-gold-bg p-4 text-sm text-gold-ink">

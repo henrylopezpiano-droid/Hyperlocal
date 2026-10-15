@@ -9,6 +9,9 @@ const PLANTILLA_SIN =
   'Hola {nombre}, soy Henry, el administrador de Mercado Hiperlocal 👋 Ya eres vecino verificado, pero todavía no tienes anuncios activos. Publicar es gratis y toma un par de minutos: {enlace}'
 const PLANTILLA_FOTO =
   'Hola {nombre}, soy Henry, el administrador de Mercado Hiperlocal 👋 Vi que tu anuncio "{anuncio}" todavía no tiene foto. Con foto se ve mucho mejor y te escriben más. Entra aquí y toca "Agregar foto" (toma un minuto): {enlace}'
+const PLANTILLA_VENCE =
+  'Hola {nombre}, soy Henry, el administrador de Mercado Hiperlocal 👋 Tu anuncio "{anuncio}" vence en {dias}. Para que siga visible para tus vecinos, entra aquí y toca "Renovar 30 días" (es gratis): {enlace}'
+const CLAVE_VENCE = 'admin-plantilla-vence-v1'
 const CLAVE_FOTO = 'admin-plantilla-foto-v1'
 const CLAVE_CON = 'admin-plantilla-con-v2'
 const CLAVE_SIN = 'admin-plantilla-sin-v2'
@@ -41,7 +44,9 @@ export default function PanelMensajes({ anuncios, perfiles }) {
   const [plantillaCon, setPlantillaCon] = useState(PLANTILLA_CON)
   const [plantillaSin, setPlantillaSin] = useState(PLANTILLA_SIN)
   const [plantillaFoto, setPlantillaFoto] = useState(PLANTILLA_FOTO)
-  const [grupo, setGrupo] = useState('con') // 'con' | 'sin' | 'foto'
+  const [plantillaVence, setPlantillaVence] = useState(PLANTILLA_VENCE)
+  const [diasAviso, setDiasAviso] = useState(7) // "vence pronto" = en los próximos N días
+  const [grupo, setGrupo] = useState('con') // 'con' | 'sin' | 'foto' | 'vence'
   const [envio, setEnvio] = useState('todos') // 'todos' | 'pendientes' | 'enviados'
   const [busqueda, setBusqueda] = useState('')
   const [enviados, setEnviados] = useState([])
@@ -55,6 +60,7 @@ export default function PanelMensajes({ anuncios, perfiles }) {
     setPlantillaCon(leer(CLAVE_CON, PLANTILLA_CON))
     setPlantillaSin(leer(CLAVE_SIN, PLANTILLA_SIN))
     setPlantillaFoto(leer(CLAVE_FOTO, PLANTILLA_FOTO))
+    setPlantillaVence(leer(CLAVE_VENCE, PLANTILLA_VENCE))
     try {
       const lista = JSON.parse(leer(CLAVE_ENVIADOS, '[]'))
       if (Array.isArray(lista)) setEnviados(lista)
@@ -86,11 +92,14 @@ export default function PanelMensajes({ anuncios, perfiles }) {
     if (listo) guardar(CLAVE_FOTO, plantillaFoto)
   }, [plantillaFoto, listo])
   useEffect(() => {
+    if (listo) guardar(CLAVE_VENCE, plantillaVence)
+  }, [plantillaVence, listo])
+  useEffect(() => {
     if (listo) guardar(CLAVE_ENVIADOS, JSON.stringify(enviados))
   }, [enviados, listo])
 
   // Vecinos verificados con celular, separados en: con anuncio vigente / sin anuncio vigente
-  const { con, sin, foto } = useMemo(() => {
+  const { con, sin, foto, vence } = useMemo(() => {
     const porUsuario = new Map()
     for (const a of anuncios) {
       if (!a.user_id || !vigente(a)) continue
@@ -132,35 +141,70 @@ export default function PanelMensajes({ anuncios, perfiles }) {
         principal: ordenados[0],
       })
     }
-    return { con: conLista.sort(ordenar), sin: sinLista.sort(ordenar), foto: fotoLista.sort(ordenar) }
-  }, [anuncios, perfiles])
+    // Vecinos con un anuncio vigente que vence en los próximos N días (primero los que vencen antes)
+    const ahora = Date.now()
+    const limite = ahora + diasAviso * 86400000
+    const porVencer = new Map()
+    for (const a of anuncios) {
+      if (!a.user_id || !vigente(a) || !a.vence_at) continue
+      const t = new Date(a.vence_at).getTime()
+      if (t > limite) continue
+      if (!porVencer.has(a.user_id)) porVencer.set(a.user_id, [])
+      porVencer.get(a.user_id).push(a)
+    }
+    const venceLista = []
+    for (const [id, lista] of porVencer.entries()) {
+      const perfil = perfiles.find((p) => p.id === id)
+      const ordenados = lista.slice().sort((x, y) => new Date(x.vence_at) - new Date(y.vence_at))
+      venceLista.push({
+        id,
+        nombre: perfil?.nombre || ordenados[0].perfiles?.nombre || '',
+        tel: telefonoDe(perfil),
+        n: lista.length,
+        principal: ordenados[0],
+      })
+    }
+    venceLista.sort((x, y) => new Date(x.principal.vence_at) - new Date(y.principal.vence_at))
+    return { con: conLista.sort(ordenar), sin: sinLista.sort(ordenar), foto: fotoLista.sort(ordenar), vence: venceLista }
+  }, [anuncios, perfiles, diasAviso])
 
   const origen = typeof window !== 'undefined' ? window.location.origin : ''
-  const plantilla = grupo === 'con' ? plantillaCon : grupo === 'sin' ? plantillaSin : plantillaFoto
-  const setPlantilla = grupo === 'con' ? setPlantillaCon : grupo === 'sin' ? setPlantillaSin : setPlantillaFoto
-  const plantillaInicial = grupo === 'con' ? PLANTILLA_CON : grupo === 'sin' ? PLANTILLA_SIN : PLANTILLA_FOTO
+  const plantilla = { con: plantillaCon, sin: plantillaSin, foto: plantillaFoto, vence: plantillaVence }[grupo]
+  const setPlantilla = { con: setPlantillaCon, sin: setPlantillaSin, foto: setPlantillaFoto, vence: setPlantillaVence }[grupo]
+  const plantillaInicial = { con: PLANTILLA_CON, sin: PLANTILLA_SIN, foto: PLANTILLA_FOTO, vence: PLANTILLA_VENCE }[grupo]
+
+  // "3 días", "menos de un día"
+  function textoDias(a) {
+    const d = Math.ceil((new Date(a.vence_at).getTime() - Date.now()) / 86400000)
+    return d <= 1 ? 'menos de un día' : `${d} días`
+  }
 
   function armar(u) {
     const enlace = !u.principal
       ? origen
       : grupo === 'foto'
         ? `${origen}/mis-publicaciones?editar=${u.principal.id}` // abre directo el editor
-        : `${origen}/anuncio/${u.principal.id}`
+        : grupo === 'vence'
+          ? `${origen}/mis-publicaciones#anuncio-${u.principal.id}` // lleva a su anuncio, donde está "Renovar"
+          : `${origen}/anuncio/${u.principal.id}`
     return plantilla
       .replaceAll('{nombre}', primerNombre(u.nombre))
       .replaceAll('{anuncio}', u.principal ? u.principal.titulo : '')
+      .replaceAll('{dias}', u.principal && u.principal.vence_at ? textoDias(u.principal) : '')
       .replaceAll('{enlace}', enlace)
   }
 
-  function marcar(id) {
-    setEnviados((prev) => (prev.includes(id) ? prev : [...prev, id]))
+  // Las marcas de "enviado" son por grupo (así un vecino marcado en un grupo no aparece enviado en otro)
+  const clave = (u) => (grupo === 'con' ? u.id : `${grupo}:${u.id}`)
+  function marcar(k) {
+    setEnviados((prev) => (prev.includes(k) ? prev : [...prev, k]))
   }
 
-  const grupoLista = grupo === 'con' ? con : grupo === 'sin' ? sin : foto
-  const nEnviados = grupoLista.filter((u) => enviados.includes(u.id)).length
+  const grupoLista = { con, sin, foto, vence }[grupo]
+  const nEnviados = grupoLista.filter((u) => enviados.includes(clave(u))).length
   const q = busqueda.trim().toLowerCase()
   const visibles = grupoLista.filter((u) => {
-    const hecho = enviados.includes(u.id)
+    const hecho = enviados.includes(clave(u))
     if (envio === 'pendientes' && hecho) return false
     if (envio === 'enviados' && !hecho) return false
     if (q && !u.nombre.toLowerCase().includes(q)) return false
@@ -208,6 +252,7 @@ export default function PanelMensajes({ anuncios, perfiles }) {
           { id: 'con', etiqueta: `Con anuncios vigentes (${con.length})` },
           { id: 'sin', etiqueta: `Sin anuncios vigentes (${sin.length})` },
           { id: 'foto', etiqueta: `Anuncio sin foto (${foto.length})` },
+          { id: 'vence', etiqueta: `Vence pronto (${vence.length})` },
         ].map((t) => (
           <button
             key={t.id}
@@ -230,14 +275,29 @@ export default function PanelMensajes({ anuncios, perfiles }) {
               ? 'Mensaje para vecinos con anuncios. '
               : grupo === 'sin'
                 ? 'Mensaje para vecinos verificados sin anuncios. '
-                : 'Mensaje para vecinos con un anuncio vigente sin foto. '}
+                : grupo === 'foto'
+                  ? 'Mensaje para vecinos con un anuncio vigente sin foto. '
+                  : `Mensaje para vecinos con un anuncio que vence en los próximos ${diasAviso} días. `}
             Se reemplaza solo: <strong>{'{nombre}'}</strong> (su primer nombre)
             {grupo !== 'sin' && (
               <>
                 , <strong>{'{anuncio}'}</strong> (el título de su anuncio)
               </>
+            )}
+            {grupo === 'vence' && (
+              <>
+                , <strong>{'{dias}'}</strong> (en cuánto vence)
+              </>
             )}{' '}
-            y <strong>{'{enlace}'}</strong> ({grupo === 'con' ? 'el enlace a su anuncio' : grupo === 'foto' ? 'abre directo el editor de ese anuncio' : 'el enlace a la página'}).
+            y <strong>{'{enlace}'}</strong> (
+            {grupo === 'con'
+              ? 'el enlace a su anuncio'
+              : grupo === 'foto'
+                ? 'abre directo el editor de ese anuncio'
+                : grupo === 'vence'
+                  ? 'lleva a su anuncio, donde está el botón Renovar'
+                  : 'el enlace a la página'}
+            ).
           </p>
           <textarea
             value={plantilla}
@@ -265,20 +325,32 @@ export default function PanelMensajes({ anuncios, perfiles }) {
             <div>
               <h2 className="text-base font-extrabold">2. Vecinos</h2>
               <p className="mt-1 text-xs text-muted">
-                {grupoLista.length} {grupo === 'con' ? 'con anuncio vigente' : grupo === 'sin' ? 'verificados sin anuncio vigente' : 'con anuncio vigente sin foto'} ·{' '}
+                {grupoLista.length}{' '}
+                {{ con: 'con anuncio vigente', sin: 'verificados sin anuncio vigente', foto: 'con anuncio vigente sin foto', vence: `con anuncio que vence en ${diasAviso} días o menos` }[grupo]} ·{' '}
                 <strong className="text-ink">{nEnviados}</strong> enviados en esta tanda
               </p>
             </div>
             {nEnviados > 0 && (
               <button
                 type="button"
-                onClick={() => setEnviados((prev) => prev.filter((id) => !grupoLista.some((u) => u.id === id)))}
+                onClick={() => setEnviados((prev) => prev.filter((k) => !grupoLista.some((u) => clave(u) === k)))}
                 className="shrink-0 text-xs font-semibold text-brand hover:underline"
               >
                 Tanda nueva
               </button>
             )}
           </div>
+
+          {grupo === 'vence' && (
+            <label className="mt-3 flex flex-wrap items-center gap-2 text-xs text-muted">
+              Avisar a quienes vencen en los próximos
+              <select value={diasAviso} onChange={(e) => setDiasAviso(Number(e.target.value))} className="h-8 rounded-lg border border-line bg-white px-2 text-xs text-ink">
+                {[3, 5, 7, 10, 14].map((d) => (
+                  <option key={d} value={d}>{d} días</option>
+                ))}
+              </select>
+            </label>
+          )}
 
           <input
             type="search"
@@ -311,7 +383,7 @@ export default function PanelMensajes({ anuncios, perfiles }) {
           ) : (
             <ul className="mt-3 max-h-[60vh] space-y-2 overflow-y-auto pr-1">
               {visibles.map((u) => {
-                const hecho = enviados.includes(u.id)
+                const hecho = enviados.includes(clave(u))
                 return (
                   <li
                     key={u.id}
@@ -323,7 +395,9 @@ export default function PanelMensajes({ anuncios, perfiles }) {
                       <p className="break-words text-sm font-semibold">{u.nombre || 'Sin nombre'}</p>
                       <p className="line-clamp-2 break-words text-xs text-muted">
                         {u.principal
-                          ? `${u.n} ${u.n === 1 ? 'anuncio' : 'anuncios'} · ${u.principal.titulo}`
+                          ? grupo === 'vence'
+                            ? `Vence en ${textoDias(u.principal)} · ${u.principal.titulo}${u.n > 1 ? ` (+${u.n - 1} más)` : ''}`
+                            : `${u.n} ${u.n === 1 ? 'anuncio' : 'anuncios'} · ${u.principal.titulo}`
                           : 'Sin anuncios vigentes'}
                       </p>
                     </div>
@@ -332,7 +406,7 @@ export default function PanelMensajes({ anuncios, perfiles }) {
                         href={`https://wa.me/${u.tel}?text=${encodeURIComponent(armar(u))}`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        onClick={() => marcar(u.id)}
+                        onClick={() => marcar(clave(u))}
                         className={`flex h-10 shrink-0 items-center justify-center rounded-lg px-4 text-sm font-semibold transition ${
                           hecho ? 'border border-brand text-brand-dark hover:bg-white' : 'bg-brand text-white hover:bg-brand-dark'
                         }`}
