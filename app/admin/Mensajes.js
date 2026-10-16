@@ -13,6 +13,9 @@ const PLANTILLA_VENCE =
   'Hola {nombre}, soy Henry, el administrador de Mercado Hiperlocal 👋 Tu anuncio "{anuncio}" vence en {dias}. Para que siga visible para tus vecinos, entra aquí y toca "Renovar 30 días" (es gratis): {enlace}'
 const PLANTILLA_TODOS =
   'Hola {nombre}, soy Henry, el administrador de Mercado Hiperlocal 👋 Te cuento que ya puedes tener Mercado Hiperlocal como app en tu celular. Entra aquí con tu cuenta: {enlace}. Ábrelo en Chrome (si se abre dentro de WhatsApp, toca los tres puntos ⋮ y elige "Abrir en Chrome"). Luego, en el menú de tu cuenta, toca "Instalar app". En iPhone: Safari → Compartir → "Agregar a pantalla de inicio".'
+const PLANTILLA_BOLETIN =
+  'Hola {nombre}, soy Henry, de Mercado Hiperlocal 👋 Esto es lo que tus vecinos están buscando esta semana:\n\n{lista}\n\n¿Tienes o sabes hacer algo de esto? Escríbeles directo desde aquí: {enlace}\n\nY si tú necesitas algo, publícalo gratis como clasificado en la misma página.'
+const CLAVE_BOLETIN = 'admin-plantilla-boletin-v1'
 const CLAVE_TODOS = 'admin-plantilla-todos-v2'
 const CLAVE_VENCE = 'admin-plantilla-vence-v1'
 const CLAVE_FOTO = 'admin-plantilla-foto-v1'
@@ -43,14 +46,15 @@ function vigente(a) {
   return a.estado !== 'cerrada' && (!a.vence_at || new Date(a.vence_at) > new Date())
 }
 
-export default function PanelMensajes({ anuncios, perfiles }) {
+export default function PanelMensajes({ anuncios, perfiles, clasificados = [], onEliminarClasificado, procesandoId }) {
   const [plantillaCon, setPlantillaCon] = useState(PLANTILLA_CON)
   const [plantillaSin, setPlantillaSin] = useState(PLANTILLA_SIN)
   const [plantillaFoto, setPlantillaFoto] = useState(PLANTILLA_FOTO)
   const [plantillaVence, setPlantillaVence] = useState(PLANTILLA_VENCE)
   const [diasAviso, setDiasAviso] = useState(7) // "vence pronto" = en los próximos N días
   const [plantillaTodos, setPlantillaTodos] = useState(PLANTILLA_TODOS)
-  const [grupo, setGrupo] = useState('todos') // 'todos' | 'con' | 'sin' | 'foto' | 'vence'
+  const [plantillaBoletin, setPlantillaBoletin] = useState(PLANTILLA_BOLETIN)
+  const [grupo, setGrupo] = useState('todos') // 'todos' | 'boletin' | 'con' | 'sin' | 'foto' | 'vence'
   const [envio, setEnvio] = useState('todos') // 'todos' | 'pendientes' | 'enviados'
   const [busqueda, setBusqueda] = useState('')
   const [enviados, setEnviados] = useState([])
@@ -66,6 +70,7 @@ export default function PanelMensajes({ anuncios, perfiles }) {
     setPlantillaFoto(leer(CLAVE_FOTO, PLANTILLA_FOTO))
     setPlantillaVence(leer(CLAVE_VENCE, PLANTILLA_VENCE))
     setPlantillaTodos(leer(CLAVE_TODOS, PLANTILLA_TODOS))
+    setPlantillaBoletin(leer(CLAVE_BOLETIN, PLANTILLA_BOLETIN))
     try {
       const lista = JSON.parse(leer(CLAVE_ENVIADOS, '[]'))
       if (Array.isArray(lista)) setEnviados(lista)
@@ -102,6 +107,9 @@ export default function PanelMensajes({ anuncios, perfiles }) {
   useEffect(() => {
     if (listo) guardar(CLAVE_TODOS, plantillaTodos)
   }, [plantillaTodos, listo])
+  useEffect(() => {
+    if (listo) guardar(CLAVE_BOLETIN, plantillaBoletin)
+  }, [plantillaBoletin, listo])
   useEffect(() => {
     if (listo) guardar(CLAVE_ENVIADOS, JSON.stringify(enviados))
   }, [enviados, listo])
@@ -192,9 +200,21 @@ export default function PanelMensajes({ anuncios, perfiles }) {
   }, [anuncios, perfiles, diasAviso])
 
   const origen = typeof window !== 'undefined' ? window.location.origin : ''
-  const plantilla = { todos: plantillaTodos, con: plantillaCon, sin: plantillaSin, foto: plantillaFoto, vence: plantillaVence }[grupo]
-  const setPlantilla = { todos: setPlantillaTodos, con: setPlantillaCon, sin: setPlantillaSin, foto: setPlantillaFoto, vence: setPlantillaVence }[grupo]
-  const plantillaInicial = { todos: PLANTILLA_TODOS, con: PLANTILLA_CON, sin: PLANTILLA_SIN, foto: PLANTILLA_FOTO, vence: PLANTILLA_VENCE }[grupo]
+  const plantilla = { boletin: plantillaBoletin, todos: plantillaTodos, con: plantillaCon, sin: plantillaSin, foto: plantillaFoto, vence: plantillaVence }[grupo]
+  const setPlantilla = { boletin: setPlantillaBoletin, todos: setPlantillaTodos, con: setPlantillaCon, sin: setPlantillaSin, foto: setPlantillaFoto, vence: setPlantillaVence }[grupo]
+  const plantillaInicial = { boletin: PLANTILLA_BOLETIN, todos: PLANTILLA_TODOS, con: PLANTILLA_CON, sin: PLANTILLA_SIN, foto: PLANTILLA_FOTO, vence: PLANTILLA_VENCE }[grupo]
+
+  // Clasificados vigentes (los que entran al boletín)
+  const clasVigentes = useMemo(
+    () => clasificados.filter((c) => c.estado === 'activa' && new Date(c.vence_at) > new Date()),
+    [clasificados]
+  )
+  const textoLista = clasVigentes.length
+    ? clasVigentes
+        .slice(0, 15)
+        .map((c) => `• ${c.titulo} (${primerNombre(c.perfiles?.nombre)}${c.perfiles?.barrio ? ', ' + c.perfiles.barrio : ''})`)
+        .join('\n')
+    : '• Esta semana no hay clasificados nuevos.'
 
   // "3 días", "menos de un día"
   function textoDias(a) {
@@ -214,7 +234,8 @@ export default function PanelMensajes({ anuncios, perfiles }) {
       .replaceAll('{nombre}', primerNombre(u.nombre))
       .replaceAll('{anuncio}', u.principal ? u.principal.titulo : '')
       .replaceAll('{dias}', u.principal && u.principal.vence_at ? textoDias(u.principal) : '')
-      .replaceAll('{enlace}', enlace)
+      .replaceAll('{lista}', textoLista)
+      .replaceAll('{enlace}', grupo === 'boletin' ? `${origen}/clasificados` : enlace)
   }
 
   // Las marcas de "enviado" son por grupo (así un vecino marcado en un grupo no aparece enviado en otro)
@@ -223,7 +244,7 @@ export default function PanelMensajes({ anuncios, perfiles }) {
     setEnviados((prev) => (prev.includes(k) ? prev : [...prev, k]))
   }
 
-  const grupoLista = { todos, con, sin, foto, vence }[grupo]
+  const grupoLista = { todos, boletin: todos, con, sin, foto, vence }[grupo]
   const nEnviados = grupoLista.filter((u) => enviados.includes(clave(u))).length
   const q = busqueda.trim().toLowerCase()
   const visibles = grupoLista.filter((u) => {
@@ -273,6 +294,7 @@ export default function PanelMensajes({ anuncios, perfiles }) {
       <div className="grid grid-cols-3 gap-2 sm:flex sm:flex-wrap">
         {[
           { id: 'todos', nombre: 'Todos', n: todos.length },
+          { id: 'boletin', nombre: 'Boletín', n: clasVigentes.length },
           { id: 'con', nombre: 'Con anuncios', n: con.length },
           { id: 'sin', nombre: 'Sin anuncios', n: sin.length },
           { id: 'foto', nombre: 'Sin foto', n: foto.length },
@@ -296,7 +318,9 @@ export default function PanelMensajes({ anuncios, perfiles }) {
         <section className="min-w-0 rounded-2xl border border-line bg-white p-4 shadow-sm">
           <h2 className="text-base font-extrabold">1. Tu mensaje</h2>
           <p className="mt-1 break-words text-xs text-muted">
-            {grupo === 'todos'
+            {grupo === 'boletin'
+              ? 'Boletín para todos los vecinos verificados: resume lo que se busca en Clasificados. '
+              : grupo === 'todos'
               ? 'Mensaje general para todos los vecinos verificados. '
               : grupo === 'con'
               ? 'Mensaje para vecinos con anuncios. '
@@ -306,7 +330,7 @@ export default function PanelMensajes({ anuncios, perfiles }) {
                   ? 'Mensaje para vecinos con un anuncio vigente sin foto. '
                   : `Mensaje para vecinos con un anuncio que vence en los próximos ${diasAviso} días. `}
             Se reemplaza solo: <strong>{'{nombre}'}</strong> (su primer nombre)
-            {grupo !== 'sin' && grupo !== 'todos' && (
+            {grupo !== 'sin' && grupo !== 'todos' && grupo !== 'boletin' && (
               <>
                 , <strong>{'{anuncio}'}</strong> (el título de su anuncio)
               </>
@@ -316,8 +340,13 @@ export default function PanelMensajes({ anuncios, perfiles }) {
                 , <strong>{'{dias}'}</strong> (en cuánto vence)
               </>
             )}{' '}
+            {grupo === 'boletin' && (
+              <>
+                , <strong>{'{lista}'}</strong> (los clasificados vigentes)
+              </>
+            )}{' '}
             y <strong>{'{enlace}'}</strong> (
-            {grupo === 'todos' || grupo === 'sin'
+            {grupo === 'todos' || grupo === 'sin' || grupo === 'boletin'
               ? 'el enlace a la página'
               : grupo === 'con'
               ? 'el enlace a su anuncio'
@@ -355,7 +384,7 @@ export default function PanelMensajes({ anuncios, perfiles }) {
               <h2 className="text-base font-extrabold">2. Vecinos</h2>
               <p className="mt-1 text-xs text-muted">
                 {grupoLista.length}{' '}
-                {{ todos: 'vecinos verificados', con: 'con anuncio vigente', sin: 'verificados sin anuncio vigente', foto: 'con anuncio vigente sin foto', vence: `con anuncio que vence en ${diasAviso} días o menos` }[grupo]} ·{' '}
+                {{ boletin: 'vecinos verificados', todos: 'vecinos verificados', con: 'con anuncio vigente', sin: 'verificados sin anuncio vigente', foto: 'con anuncio vigente sin foto', vence: `con anuncio que vence en ${diasAviso} días o menos` }[grupo]} ·{' '}
                 <strong className="text-ink">{nEnviados}</strong> enviados en esta tanda
               </p>
             </div>
@@ -423,7 +452,7 @@ export default function PanelMensajes({ anuncios, perfiles }) {
                     <div className="min-w-0 sm:flex-1">
                       <p className="break-words text-sm font-semibold">{u.nombre || 'Sin nombre'}</p>
                       <p className="line-clamp-2 break-words text-xs text-muted">
-                        {grupo === 'todos'
+                        {grupo === 'todos' || grupo === 'boletin'
                           ? u.detalle
                           : u.principal
                           ? grupo === 'vence'
@@ -454,6 +483,41 @@ export default function PanelMensajes({ anuncios, perfiles }) {
           )}
         </section>
       </div>
+
+      {grupo === 'boletin' && (
+        <section className="min-w-0 rounded-2xl border border-line bg-white p-4 shadow-sm">
+          <h2 className="text-base font-extrabold">Clasificados vigentes ({clasVigentes.length})</h2>
+          <p className="mt-1 text-xs text-muted">Esto es lo que entra en {'{lista}'}. Si alguno no debe estar, elimínalo aquí.</p>
+          {clasVigentes.length === 0 ? (
+            <p className="mt-3 rounded-lg bg-surface p-3 text-center text-sm text-muted">Todavía no hay clasificados vigentes.</p>
+          ) : (
+            <ul className="mt-3 space-y-2">
+              {clasVigentes.map((c) => (
+                <li key={c.id} className="flex items-start justify-between gap-3 rounded-lg border border-line p-3">
+                  <div className="min-w-0">
+                    <p className="break-words text-sm font-semibold">{c.titulo}</p>
+                    <p className="break-words text-xs text-muted">
+                      {c.perfiles?.nombre || 'Vecino'}
+                      {c.perfiles?.barrio ? ` · ${c.perfiles.barrio}` : ''}
+                    </p>
+                    {c.descripcion && <p className="mt-1 line-clamp-2 break-words text-xs text-muted">{c.descripcion}</p>}
+                  </div>
+                  {onEliminarClasificado && (
+                    <button
+                      type="button"
+                      onClick={() => onEliminarClasificado(c)}
+                      disabled={procesandoId === c.id}
+                      className="shrink-0 rounded-lg border border-line px-3 py-1.5 text-xs font-semibold text-red-600 transition hover:bg-red-50 disabled:opacity-60"
+                    >
+                      Eliminar
+                    </button>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      )}
 
       <section className="min-w-0 rounded-2xl border border-line bg-white p-4 shadow-sm">
         <h2 className="text-base font-extrabold">Aviso dentro de la app</h2>

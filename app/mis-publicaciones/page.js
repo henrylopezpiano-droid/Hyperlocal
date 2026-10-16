@@ -7,6 +7,7 @@ import { comprimirImagen } from '../../src/lib/imagenes'
 import { CATEGORIAS, CATEGORIA_INMUEBLES } from '../../src/lib/categorias'
 import AvisoInmueble from '../components/AvisoInmueble'
 import InstalarApp from '../components/InstalarApp'
+import MisClasificados from '../components/MisClasificados'
 
 const DIA = 24 * 60 * 60 * 1000
 const MAX_FOTOS = 3
@@ -552,6 +553,8 @@ export default function MisPublicaciones() {
           })}
         </ul>
       )}
+
+      <MisClasificados />
     </div>
   )
 }

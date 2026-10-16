@@ -6,6 +6,7 @@ import { CATEGORIAS } from '../src/lib/categorias'
 import { precioTexto } from '../src/lib/contacto'
 import BotonContacto from './components/BotonContacto'
 import ReportarModal from './components/ReportarModal'
+import PestanasInicio from './components/PestanasInicio'
 
 const TIPOS = [
   { valor: 'todos', etiqueta: 'Todos' },
@@ -205,6 +206,8 @@ export default function Home() {
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-6">
+      <PestanasInicio activa="anuncios" />
+
       <section className="mb-6">
         <h1 className="text-2xl font-extrabold tracking-tight sm:text-3xl">Lo que ofrecen tus vecinos</h1>
         <p className="mt-1 text-sm text-muted">Contacta directo por WhatsApp. Sin comisiones.</p>

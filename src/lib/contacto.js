@@ -16,9 +16,12 @@ export function telefonoDe(perfil) {
   return t ? normalizarCelular(t) : ''
 }
 
-export function enlaceWhatsApp(tel, nombre, titulo) {
+// Si se pasa el id del anuncio, el mensaje incluye su enlace: WhatsApp lo muestra con foto y precio
+export function enlaceWhatsApp(tel, nombre, titulo, publicacionId) {
+  const enlace =
+    publicacionId && typeof window !== 'undefined' ? `\n${window.location.origin}/anuncio/${publicacionId}` : ''
   const texto = encodeURIComponent(
-    `Hola ${nombre || 'vecino'}, vi tu publicación "${titulo}" en ${NOMBRE_APP} y me interesa.`
+    `Hola ${nombre || 'vecino'}, vi tu publicación "${titulo}" en ${NOMBRE_APP} y me interesa.${enlace}`
   )
   return `https://wa.me/${normalizarCelular(tel)}?text=${texto}`
 }
@@ -58,4 +61,20 @@ export function fotosDe(pub) {
 // Rutas en Storage de todas las fotos del anuncio (para borrarlas)
 export function rutasEnStorage(pub) {
   return fotosDe(pub).map(rutaEnStorage).filter(Boolean)
+}
+
+// Mensaje para quien responde a un clasificado ("busco...")
+export function enlaceWhatsAppClasificado(tel, nombre, titulo) {
+  const texto = encodeURIComponent(
+    `Hola ${nombre || 'vecino'}, vi tu clasificado "${titulo}" en ${NOMBRE_APP} y creo que te puedo ayudar.`
+  )
+  return `https://wa.me/${normalizarCelular(tel)}?text=${texto}`
+}
+
+// "hoy", "ayer", "hace 3 días"
+export function haceTiempo(fecha) {
+  const d = Math.floor((Date.now() - new Date(fecha).getTime()) / 86400000)
+  if (d <= 0) return 'hoy'
+  if (d === 1) return 'ayer'
+  return `hace ${d} días`
 }

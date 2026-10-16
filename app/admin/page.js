@@ -16,6 +16,7 @@ export default function AdminPage() {
   const [perfiles, setPerfiles] = useState([])
   const [reportes, setReportes] = useState([])
   const [anuncios, setAnuncios] = useState([])
+  const [clasificados, setClasificados] = useState([])
   const [metricas, setMetricas] = useState({})
   const [ordenAnuncios, setOrdenAnuncios] = useState('recientes')
   const [pestana, setPestana] = useState('pendientes')
@@ -48,7 +49,7 @@ export default function AdminPage() {
         return
       }
 
-      const [perf, rep, anu, met] = await Promise.all([
+      const [perf, rep, anu, met, cla] = await Promise.all([
         supabase.from('perfiles').select('*, contactos (telefono)'),
         supabase
           .from('reportes')
@@ -60,6 +61,10 @@ export default function AdminPage() {
           .select('id, user_id, titulo, tipo, categoria, precio, estado, vence_at, created_at, barrio, imagen, imagenes, perfiles (nombre)')
           .order('created_at', { ascending: false }),
         supabase.from('metricas_totales').select('publicacion_id, visitas, contactos'),
+        supabase
+          .from('clasificados')
+          .select('id, user_id, titulo, descripcion, categoria, presupuesto, estado, created_at, vence_at, perfiles (nombre, barrio)')
+          .order('created_at', { ascending: false }),
       ])
       if (perf.error) {
         setAviso('No se pudo cargar la lista: ' + perf.error.message)
@@ -69,6 +74,7 @@ export default function AdminPage() {
       }
       if (!rep.error) setReportes(rep.data || [])
       if (!anu.error) setAnuncios(anu.data || [])
+      if (!cla.error) setClasificados(cla.data || [])
       if (!met.error && met.data) setMetricas(Object.fromEntries(met.data.map((x) => [x.publicacion_id, x])))
       setEstado('ok')
     }
@@ -156,9 +162,23 @@ export default function AdminPage() {
 
     const idsAnuncios = new Set((anuncios || []).map((a) => a.id))
     setPerfiles((prev) => prev.filter((p) => p.id !== perfil.id))
+    setClasificados((prev) => prev.filter((c) => c.user_id !== perfil.id))
     setAnuncios((prev) => prev.filter((a) => !idsAnuncios.has(a.id)))
     setReportes((prev) => prev.filter((r) => !idsAnuncios.has(r.publicaciones?.id)))
     avisar(`Se eliminó a ${perfil.nombre || 'el usuario'} y todos sus datos.`)
+    setProcesandoId(null)
+  }
+
+  async function eliminarClasificado(c) {
+    if (!window.confirm(`¿Eliminar el clasificado "${c.titulo}"? No se puede deshacer.`)) return
+    setProcesandoId(c.id)
+    const { data, error } = await supabase.from('clasificados').delete().eq('id', c.id).select('id')
+    if (error || !data || data.length === 0) {
+      avisar('No se pudo eliminar el clasificado.', true)
+    } else {
+      setClasificados((prev) => prev.filter((x) => x.id !== c.id))
+      avisar('Clasificado eliminado.')
+    }
     setProcesandoId(null)
   }
 
@@ -285,7 +305,7 @@ export default function AdminPage() {
       )}
 
       {pestana === 'mensajes' ? (
-        <PanelMensajes anuncios={anuncios} perfiles={perfiles} />
+        <PanelMensajes anuncios={anuncios} perfiles={perfiles} clasificados={clasificados} onEliminarClasificado={eliminarClasificado} procesandoId={procesandoId} />
       ) : pestana === 'anuncios' ? (
         anunciosFiltrados.length === 0 ? (
           <div className="rounded-2xl border border-line bg-white p-8 text-center text-sm text-muted">
