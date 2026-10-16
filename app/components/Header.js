@@ -29,6 +29,7 @@ export default function Header() {
   const [instalable, setInstalable] = useState(false) // el navegador permite instalar la app (o es iPhone)
   const [esIos, setEsIos] = useState(false)
   const [pasosIos, setPasosIos] = useState(false)
+  const [pasosAndroid, setPasosAndroid] = useState(false)
 
   // Opción "Instalar app" del menú: solo aparece si se puede instalar y aún no está instalada
   useEffect(() => {
@@ -39,6 +40,8 @@ export default function Header() {
       setInstalable(true)
       return
     }
+    // En Android la opción se muestra siempre: si el navegador no la permite (p. ej. dentro de WhatsApp), se explican los pasos
+    if (/android/i.test(navigator.userAgent)) setInstalable(true)
     if (window.__pwaEvento) setInstalable(true)
     const alListo = () => setInstalable(true)
     const alInstalar = () => setInstalable(false)
@@ -56,7 +59,10 @@ export default function Header() {
       return
     }
     const ev = window.__pwaEvento
-    if (!ev) return
+    if (!ev) {
+      setPasosAndroid(true)
+      return
+    }
     setAbierto(false)
     ev.prompt()
     try {
@@ -179,6 +185,11 @@ export default function Header() {
                         {pasosIos && (
                           <p className="px-4 pb-3 text-xs text-muted">
                             En <strong>Safari</strong>, toca <strong>Compartir</strong> y elige <strong>Agregar a pantalla de inicio</strong>.
+                          </p>
+                        )}
+                        {pasosAndroid && (
+                          <p className="px-4 pb-3 text-xs text-muted">
+                            Ábrela en <strong>Chrome</strong>: toca los tres puntos <strong>⋮</strong> de arriba a la derecha y elige <strong>Abrir en Chrome</strong>. Luego toca de nuevo "Instalar app". Si ya la instalaste, búscala en la pantalla de inicio de tu celular.
                           </p>
                         )}
                       </div>

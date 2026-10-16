@@ -55,6 +55,41 @@ function Bandera() {
   )
 }
 
+// Orden de la portada: se baraja al abrir la app (y de nuevo si pasaron 30 minutos),
+// pero se mantiene mientras la persona navega, para que nada se mueva de lugar.
+function semillaVisita() {
+  const nueva = () => Math.floor(Math.random() * 2147483647)
+  try {
+    const guardada = JSON.parse(sessionStorage.getItem('orden-semilla') || 'null')
+    if (guardada && Date.now() - guardada.t < 30 * 60 * 1000) return guardada.s
+    const s = nueva()
+    sessionStorage.setItem('orden-semilla', JSON.stringify({ s, t: Date.now() }))
+    return s
+  } catch (_) {
+    return nueva()
+  }
+}
+
+function barajar(lista, semilla) {
+  const a = [...lista]
+  let x = semilla >>> 0
+  const azar = () => {
+    x = (x + 0x6d2b79f5) >>> 0
+    let t = x
+    t = Math.imul(t ^ (t >>> 15), t | 1)
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61)
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+  }
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(azar() * (i + 1))
+    ;[a[i], a[j]] = [a[j], a[i]]
+  }
+  return a
+}
+
+// "Nuevo": publicado en los últimos 3 días
+const esNuevo = (pub) => pub.created_at && Date.now() - new Date(pub.created_at).getTime() < 3 * 24 * 60 * 60 * 1000
+
 export default function Home() {
   const [publicaciones, setPublicaciones] = useState([])
   const [barrios, setBarrios] = useState([])
@@ -107,7 +142,7 @@ export default function Home() {
         supabase.from('barrios').select('municipio, nombre').order('nombre'),
       ])
       if (pubs.error) console.error('Error al cargar publicaciones:', pubs.error.message)
-      else setPublicaciones(pubs.data || [])
+      else setPublicaciones(barajar(pubs.data || [], semillaVisita()))
       if (lista.error) console.error('Error al cargar barrios:', lista.error.message)
       else setBarrios(lista.data || [])
       setCargando(false)
@@ -342,6 +377,11 @@ export default function Home() {
                   <span className="pointer-events-none absolute left-2 top-2 z-10 rounded-md bg-white/95 px-2 py-0.5 text-xs font-semibold capitalize text-brand">
                     {pub.tipo}
                   </span>
+                  {esNuevo(pub) && (
+                    <span className="pointer-events-none absolute left-2 top-9 z-10 rounded-md bg-brand px-2 py-0.5 text-xs font-bold text-white shadow-sm">
+                      Nuevo
+                    </span>
+                  )}
                   <button
                     onClick={() => reportar(pub)}
                     aria-label="Reportar anuncio"

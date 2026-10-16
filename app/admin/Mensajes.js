@@ -12,8 +12,8 @@ const PLANTILLA_FOTO =
 const PLANTILLA_VENCE =
   'Hola {nombre}, soy Henry, el administrador de Mercado Hiperlocal 👋 Tu anuncio "{anuncio}" vence en {dias}. Para que siga visible para tus vecinos, entra aquí y toca "Renovar 30 días" (es gratis): {enlace}'
 const PLANTILLA_TODOS =
-  'Hola {nombre}, soy Henry, el administrador de Mercado Hiperlocal 👋 Te cuento que ya puedes tener Mercado Hiperlocal como app en tu celular. Entra aquí con tu cuenta: {enlace}. En Android toca "Instalar"; en iPhone, Compartir → "Agregar a pantalla de inicio".'
-const CLAVE_TODOS = 'admin-plantilla-todos-v1'
+  'Hola {nombre}, soy Henry, el administrador de Mercado Hiperlocal 👋 Te cuento que ya puedes tener Mercado Hiperlocal como app en tu celular. Entra aquí con tu cuenta: {enlace}. Ábrelo en Chrome (si se abre dentro de WhatsApp, toca los tres puntos ⋮ y elige "Abrir en Chrome"). Luego, en el menú de tu cuenta, toca "Instalar app". En iPhone: Safari → Compartir → "Agregar a pantalla de inicio".'
+const CLAVE_TODOS = 'admin-plantilla-todos-v2'
 const CLAVE_VENCE = 'admin-plantilla-vence-v1'
 const CLAVE_FOTO = 'admin-plantilla-foto-v1'
 const CLAVE_CON = 'admin-plantilla-con-v2'
