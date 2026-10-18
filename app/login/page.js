@@ -38,10 +38,24 @@ export default function LoginPage() {
   const [origen, setOrigen] = useState('')
 
   useEffect(() => {
+    // Si llegas desde la página de bienvenida (anuncios), abre directo el registro con lo que ya se sabe
+    const p = new URLSearchParams(window.location.search)
+    if (p.get('registro') === '1') setRegistrando(true)
+    const o = p.get('origen')
+    if (['vecino', 'facebook', 'whatsapp', 'otro'].includes(o)) setOrigen(o)
+
     async function cargarBarrios() {
       const { data, error } = await supabase.from('barrios').select('municipio, nombre').order('nombre')
       if (error) console.error('Error al cargar barrios:', error.message)
-      else setBarrios(data || [])
+      else {
+        setBarrios(data || [])
+        const pedido = (p.get('barrio') || '').trim().toLowerCase()
+        const hallado = pedido && (data || []).find((b) => b.nombre.toLowerCase() === pedido)
+        if (hallado) {
+          setMunicipio(hallado.municipio)
+          setBarrio(hallado.nombre)
+        }
+      }
     }
     cargarBarrios()
   }, [])

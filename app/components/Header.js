@@ -23,6 +23,7 @@ function Flecha({ abierto }) {
 export default function Header() {
   const pathname = usePathname() || ''
   const enClasificados = pathname.startsWith('/clasificados')
+  const enBienvenida = pathname.startsWith('/bienvenido') // landing: sin distracciones
   const [sesion, setSesion] = useState(false)
   const [nombre, setNombre] = useState('')
   const [verificado, setVerificado] = useState(null)
@@ -142,7 +143,7 @@ export default function Header() {
           )}
 
           {/* En Clasificados el botón de publicar vive en la página (en dorado), para no confundirlo con el de anuncios */}
-          {!enClasificados && (
+          {!enClasificados && !enBienvenida && (
             <Link href="/publicar" className="whitespace-nowrap rounded-lg bg-brand px-4 py-2 text-white transition hover:bg-brand-dark">
               Publicar
             </Link>
