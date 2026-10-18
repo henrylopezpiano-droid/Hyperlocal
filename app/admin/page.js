@@ -4,6 +4,8 @@ import { supabase } from '../../src/lib/supabase'
 import { telefonoDe, rutasEnStorage, precioTexto } from '../../src/lib/contacto'
 import PanelMensajes from './Mensajes'
 
+const ORIGENES = { vecino: 'Un vecino o amigo', facebook: 'Facebook / Instagram', whatsapp: 'WhatsApp', otro: 'Otro' }
+
 function formatearCelular(tel) {
   const d = (tel || '').replace(/\D/g, '')
   const local = d.length === 12 && d.startsWith('57') ? d.slice(2) : d
@@ -17,6 +19,7 @@ export default function AdminPage() {
   const [reportes, setReportes] = useState([])
   const [anuncios, setAnuncios] = useState([])
   const [clasificados, setClasificados] = useState([])
+  const [correos, setCorreos] = useState({}) // id del vecino -> correo (solo lo ve el administrador)
   const [metricas, setMetricas] = useState({})
   const [ordenAnuncios, setOrdenAnuncios] = useState('recientes')
   const [pestana, setPestana] = useState('pendientes')
@@ -75,6 +78,9 @@ export default function AdminPage() {
       if (!rep.error) setReportes(rep.data || [])
       if (!anu.error) setAnuncios(anu.data || [])
       if (!cla.error) setClasificados(cla.data || [])
+      // Correos de los vecinos (si falta el SQL de la actualización 25, simplemente no se muestran)
+      const { data: cor } = await supabase.rpc('admin_correos')
+      if (Array.isArray(cor)) setCorreos(Object.fromEntries(cor.map((c) => [c.id, c.correo])))
       if (!met.error && met.data) setMetricas(Object.fromEntries(met.data.map((x) => [x.publicacion_id, x])))
       setEstado('ok')
     }
@@ -90,7 +96,7 @@ export default function AdminPage() {
   const lista = !q
     ? base
     : base.filter((p) => {
-        const enTexto = [p.nombre, p.barrio, p.municipio].some((v) => (v || '').toLowerCase().includes(q))
+        const enTexto = [p.nombre, p.barrio, p.municipio, correos[p.id]].some((v) => (v || '').toLowerCase().includes(q))
         const enCelular = qDigitos && (telefonoDe(p) || '').replace(/\D/g, '').includes(qDigitos)
         return enTexto || enCelular
       })
@@ -166,6 +172,28 @@ export default function AdminPage() {
     setAnuncios((prev) => prev.filter((a) => !idsAnuncios.has(a.id)))
     setReportes((prev) => prev.filter((r) => !idsAnuncios.has(r.publicaciones?.id)))
     avisar(`Se eliminó a ${perfil.nombre || 'el usuario'} y todos sus datos.`)
+    setProcesandoId(null)
+  }
+
+  // Manda al correo del vecino el enlace para crear una contraseña nueva (tú nunca ves ni tocas su contraseña)
+  async function enviarEnlaceClave(p) {
+    const correo = correos[p.id]
+    if (!correo) return
+    if (!window.confirm(`¿Enviar el enlace para cambiar la contraseña a ${correo}?`)) return
+    setProcesandoId(p.id)
+    const { error } = await supabase.auth.resetPasswordForEmail(correo, { redirectTo: `${window.location.origin}/nueva-clave` })
+    if (error) {
+      const limite = error.status === 429 || /rate limit/i.test(error.message)
+      avisar(
+        limite
+          ? 'Se alcanzó el límite de correos por hora. Intenta de nuevo en un rato.'
+          : 'No se pudo enviar el correo: ' + error.message,
+        true
+      )
+    } else {
+      const [usuario, dominio] = correo.split('@')
+      avisar(`Listo: le envié el enlace a ${usuario.slice(0, 2)}***@${dominio}. Dile que revise también el correo no deseado (spam).`)
+    }
     setProcesandoId(null)
   }
 
@@ -282,13 +310,29 @@ export default function AdminPage() {
           type="search"
           value={busqueda}
           onChange={(e) => setBusqueda(e.target.value)}
-          placeholder={pestana === 'anuncios' ? 'Buscar por título, vecino, barrio o categoría...' : 'Buscar por nombre, barrio o celular...'}
+          placeholder={pestana === 'anuncios' ? 'Buscar por título, vecino, barrio o categoría...' : 'Buscar por nombre, barrio, correo o celular...'}
           className="mb-4 h-10 w-full rounded-lg border border-line bg-white px-3 text-sm focus:border-brand focus:outline-none"
         />
       )}
 
       {aviso && (
         <p className={`mb-4 rounded-lg p-3 text-sm ${esError ? 'bg-red-50 text-red-700' : 'bg-brand-soft text-brand-dark'}`}>{aviso}</p>
+      )}
+
+      {pestana === 'todos' && perfiles.length > 0 && (
+        <div className="mb-4 rounded-2xl border border-line bg-white p-3 text-sm">
+          <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted">¿Cómo llegaron?</p>
+          <p className="text-muted">
+            {[...Object.keys(ORIGENES), null].map((k) => {
+              const n = perfiles.filter((p) => (k ? p.origen === k : !ORIGENES[p.origen])).length
+              return (
+                <span key={k || 'sin'} className="mr-3 inline-block whitespace-nowrap">
+                  {k ? ORIGENES[k] : 'Sin dato'}: <strong className="text-ink">{n}</strong>
+                </span>
+              )
+            })}
+          </p>
+        </div>
       )}
 
       {pestana === 'anuncios' && (
@@ -413,6 +457,10 @@ export default function AdminPage() {
                       {p.barrio || 'Sin barrio'}
                       {p.municipio ? ` · ${p.municipio}` : ''}
                     </p>
+                    {correos[p.id] && <p className="break-all text-sm text-muted">Correo: {correos[p.id]}</p>}
+                    {p.origen && ORIGENES[p.origen] && (
+                      <p className="text-sm text-muted">Llegó por: {ORIGENES[p.origen]}</p>
+                    )}
                     <p className="text-sm text-muted">
                       {formatearCelular(tel)}
                       {p.created_at ? ` · registrado el ${new Date(p.created_at).toLocaleDateString('es-CO')}` : ''}
@@ -424,6 +472,11 @@ export default function AdminPage() {
                       <a href={`https://wa.me/${tel}?text=${texto}`} target="_blank" rel="noopener noreferrer" className="h-10 rounded-lg border border-brand px-3 text-sm font-semibold leading-10 text-brand transition hover:bg-brand-soft">
                         Confirmar por WhatsApp
                       </a>
+                    )}
+                    {correos[p.id] && (
+                      <button onClick={() => enviarEnlaceClave(p)} disabled={procesandoId === p.id} className="h-10 rounded-lg border border-line px-3 text-sm font-semibold text-muted transition hover:text-ink disabled:opacity-60">
+                        Enviar enlace de contraseña
+                      </button>
                     )}
                     {p.verificado ? (
                       <button onClick={() => cambiarVerificacion(p, false)} disabled={procesandoId === p.id} className="h-10 rounded-lg border border-line px-3 text-sm font-semibold text-muted transition hover:text-ink disabled:opacity-60">

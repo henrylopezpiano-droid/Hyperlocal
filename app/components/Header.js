@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
+import { usePathname } from 'next/navigation'
 import { supabase } from '../../src/lib/supabase'
 
 function Check() {
@@ -20,6 +21,8 @@ function Flecha({ abierto }) {
 }
 
 export default function Header() {
+  const pathname = usePathname() || ''
+  const enClasificados = pathname.startsWith('/clasificados')
   const [sesion, setSesion] = useState(false)
   const [nombre, setNombre] = useState('')
   const [verificado, setVerificado] = useState(null)
@@ -138,7 +141,7 @@ export default function Header() {
             </Link>
           )}
 
-          <Link href="/publicar" className="whitespace-nowrap rounded-lg bg-brand px-4 py-2 text-white transition hover:bg-brand-dark">
+          <Link href={enClasificados ? '/clasificados/nuevo' : '/publicar'} className="whitespace-nowrap rounded-lg bg-brand px-4 py-2 text-white transition hover:bg-brand-dark">
             Publicar
           </Link>
 

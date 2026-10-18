@@ -35,6 +35,7 @@ export default function LoginPage() {
   const [error, setError] = useState(false)
   const [enviando, setEnviando] = useState(false)
   const [acepto, setAcepto] = useState(false)
+  const [origen, setOrigen] = useState('')
 
   useEffect(() => {
     async function cargarBarrios() {
@@ -103,6 +104,7 @@ export default function LoginPage() {
             municipio,
             barrio,
             telefono: tel,
+            origen, // cómo se enteró (opcional)
             // Constancia de la autorización (Ley 1581 de 2012)
             acepto_datos_at: new Date().toISOString(),
             version_politica: '1.1',
@@ -149,7 +151,7 @@ export default function LoginPage() {
               <div>
                 <label className="mb-1 block text-sm font-medium">Nombre y apellido</label>
                 <input type="text" value={nombre} onChange={(e) => setNombre(e.target.value)} required className={campo} />
-                <p className="mt-1 text-xs text-muted">Así te verán los vecinos en tus anuncios. Basta un nombre y un apellido.</p>
+                <p className="mt-1 text-xs text-muted">Así te verán los vecinos en tus anuncios. Basta un nombre y un apellido; después podrás cambiarlo.</p>
               </div>
 
               <div>
@@ -191,6 +193,19 @@ export default function LoginPage() {
                     {barriosDelMunicipio.map((b) => <option key={b.nombre} value={b.nombre}>{b.nombre}</option>)}
                   </select>
                 </div>
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium">
+                  ¿Cómo te enteraste de Mercado Hiperlocal? <span className="font-normal text-muted">(opcional)</span>
+                </label>
+                <select value={origen} onChange={(e) => setOrigen(e.target.value)} className={campo}>
+                  <option value="">Elige...</option>
+                  <option value="vecino">Me lo contó un vecino o amigo</option>
+                  <option value="facebook">Vi un anuncio en Facebook o Instagram</option>
+                  <option value="whatsapp">Me llegó por WhatsApp</option>
+                  <option value="otro">Otro</option>
+                </select>
               </div>
             </>
           )}

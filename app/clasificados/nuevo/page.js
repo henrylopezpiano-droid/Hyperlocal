@@ -92,6 +92,16 @@ export default function NuevoClasificadoPage() {
           Cuéntales a tus vecinos{perfil?.barrio ? ` de ${perfil.barrio}` : ''} qué necesitas. Dura 30 días y es gratis.
         </p>
 
+        <div className="mb-5 rounded-lg border border-gold/40 bg-gold-bg p-3 text-sm text-gold-ink">
+          <p>
+            <strong>Aquí pides lo que necesitas</strong> (por ejemplo, "busco quién me repare un computador").
+          </p>
+          <p className="mt-1">
+            ¿Quieres <strong>vender u ofrecer</strong> algo? Eso va como anuncio:{' '}
+            <a href="/publicar" className="font-semibold underline">publicar un anuncio</a>.
+          </p>
+        </div>
+
         {pendiente && (
           <div className="mb-5 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
             Tu cuenta está registrada pero <strong>pendiente de verificación</strong>. Podrás publicar cuando el administrador te apruebe.
@@ -100,7 +110,7 @@ export default function NuevoClasificadoPage() {
 
         <form onSubmit={enviar} className="space-y-4">
           <div>
-            <label className="mb-1 block text-sm font-medium">¿Qué buscas?</label>
+            <label className="mb-1 block text-sm font-medium">¿Qué necesitas o buscas?</label>
             <input
               type="text"
               value={titulo}
@@ -133,7 +143,7 @@ export default function NuevoClasificadoPage() {
           </div>
 
           <div>
-            <label className="mb-1 block text-sm font-medium">Presupuesto <span className="font-normal text-muted">(opcional)</span></label>
+            <label className="mb-1 block text-sm font-medium">¿Cuánto podrías pagar? <span className="font-normal text-muted">(opcional)</span></label>
             <div className="relative">
               <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted">$</span>
               <input

@@ -81,14 +81,11 @@ export default function ClasificadosPage() {
     <div className="mx-auto max-w-6xl px-4 py-6">
       <PestanasInicio activa="clasificados" />
 
-      <section className="mb-5 flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-extrabold tracking-tight sm:text-3xl">Lo que buscan tus vecinos</h1>
-          <p className="mt-1 text-sm text-muted">¿Lo tienes o sabes hacerlo? Escríbeles directo. ¿Necesitas algo? Publícalo gratis.</p>
-        </div>
-        <Link href="/clasificados/nuevo" className="inline-flex h-10 items-center rounded-lg bg-brand px-4 text-sm font-semibold text-white transition hover:bg-brand-dark">
-          + Publicar clasificado
-        </Link>
+      <section className="mb-5">
+        <h1 className="text-2xl font-extrabold tracking-tight sm:text-3xl">Lo que buscan tus vecinos</h1>
+        <p className="mt-1 text-sm text-muted">
+          ¿Lo tienes o sabes hacerlo? Escríbeles directo. ¿Necesitas algo? Toca <strong className="text-ink">Publicar</strong>, arriba, y pídelo gratis.
+        </p>
       </section>
 
       <section className="mb-5 flex flex-col gap-3 sm:flex-row">
