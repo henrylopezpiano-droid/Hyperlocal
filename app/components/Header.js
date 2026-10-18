@@ -141,9 +141,12 @@ export default function Header() {
             </Link>
           )}
 
-          <Link href={enClasificados ? '/clasificados/nuevo' : '/publicar'} className="whitespace-nowrap rounded-lg bg-brand px-4 py-2 text-white transition hover:bg-brand-dark">
-            Publicar
-          </Link>
+          {/* En Clasificados el botón de publicar vive en la página (en dorado), para no confundirlo con el de anuncios */}
+          {!enClasificados && (
+            <Link href="/publicar" className="whitespace-nowrap rounded-lg bg-brand px-4 py-2 text-white transition hover:bg-brand-dark">
+              Publicar
+            </Link>
+          )}
 
           {sesion && (
             <div className="relative" ref={menuRef}>
