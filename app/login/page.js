@@ -65,7 +65,7 @@ export default function LoginPage() {
     [barrios]
   )
   const barriosDelMunicipio = useMemo(
-    () => barrios.filter((b) => b.municipio === municipio),
+    () => barrios.filter((b) => b.municipio === municipio).sort((x, y) => x.nombre.localeCompare(y.nombre, 'es')),
     [barrios, municipio]
   )
 
@@ -205,6 +205,7 @@ export default function LoginPage() {
                   >
                     <option value="">{municipio ? 'Elige...' : 'Primero el municipio'}</option>
                     {barriosDelMunicipio.map((b) => <option key={b.nombre} value={b.nombre}>{b.nombre}</option>)}
+                    {municipio && <option value="Otro barrio">Mi barrio no aparece en la lista</option>}
                   </select>
                 </div>
               </div>

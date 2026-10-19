@@ -156,7 +156,7 @@ export default function Home() {
     [barrios]
   )
   const barriosDelMunicipio = useMemo(
-    () => barrios.filter((b) => b.municipio === filtroMunicipio),
+    () => barrios.filter((b) => b.municipio === filtroMunicipio).sort((x, y) => x.nombre.localeCompare(y.nombre, 'es')),
     [barrios, filtroMunicipio]
   )
 
