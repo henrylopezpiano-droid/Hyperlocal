@@ -44,6 +44,7 @@ export default function MisPublicaciones() {
   const [guardandoNombre, setGuardandoNombre] = useState(false)
   const [avisoAdmin, setAvisoAdmin] = useState(null) // { id, mensaje } aviso del administrador
   const [metricas, setMetricas] = useState({})
+  const [corazones, setCorazones] = useState({})
   const [editandoId, setEditandoId] = useState(null)
   const [fotosEdit, setFotosEdit] = useState([]) // { url } = ya subida · { file, previa } = nueva
   const [progreso, setProgreso] = useState('')
@@ -86,6 +87,12 @@ export default function MisPublicaciones() {
       // Visitas y contactos de mis anuncios (si falla, simplemente no se muestran)
       const { data: m } = await supabase.from('metricas_totales').select('publicacion_id, visitas, contactos')
       if (m) setMetricas(Object.fromEntries(m.map((x) => [x.publicacion_id, x])))
+
+      // Corazones de mis anuncios (si falla, simplemente no se muestran)
+      try {
+        const { data: cz } = await supabase.rpc('mis_corazones')
+        if (cz) setCorazones(Object.fromEntries(cz.map((x) => [x.publicacion_id, x.total])))
+      } catch (_) {}
 
       // Mi nombre público (si falla, simplemente no se muestra el bloque)
       const { data: yo } = await supabase.from('perfiles').select('nombre').eq('id', user.id).maybeSingle()
@@ -423,6 +430,13 @@ export default function MisPublicaciones() {
                         <span className={`text-xs ${(metricas[pub.id]?.contactos ?? 0) > 0 ? 'font-semibold text-brand-dark' : 'text-muted'}`}>
                           {(metricas[pub.id]?.contactos ?? 0) === 1 ? 'contacto' : 'contactos'}
                         </span>
+                      </span>
+                      <span className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 ${(corazones[pub.id] ?? 0) > 0 ? 'border-red-200 bg-red-50' : 'border-line bg-surface'}`}>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill={(corazones[pub.id] ?? 0) > 0 ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={(corazones[pub.id] ?? 0) > 0 ? 'text-red-500' : 'text-muted'} aria-hidden="true">
+                          <path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8l1 1.1L12 21l7.8-7.5 1-1.1a5.5 5.5 0 0 0 0-7.8Z" />
+                        </svg>
+                        <span className="text-base font-extrabold leading-none text-ink">{corazones[pub.id] ?? 0}</span>
+                        <span className="text-xs text-muted">{(corazones[pub.id] ?? 0) === 1 ? 'corazón' : 'corazones'}</span>
                       </span>
                     </div>
                   </div>

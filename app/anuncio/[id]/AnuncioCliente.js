@@ -16,6 +16,14 @@ function Check() {
   )
 }
 
+function Corazon({ lleno }) {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill={lleno ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8l1 1.1L12 21l7.8-7.5 1-1.1a5.5 5.5 0 0 0 0-7.8Z" />
+    </svg>
+  )
+}
+
 export default function AnuncioCliente({ id }) {
   const [pub, setPub] = useState(null)
   const [estado, setEstado] = useState('cargando') // cargando | noExiste | ok
@@ -26,6 +34,9 @@ export default function AnuncioCliente({ id }) {
   const [copiado, setCopiado] = useState(false)
   const [fotoActiva, setFotoActiva] = useState(0)
   const toqueX = useRef(null)
+  const [corazones, setCorazones] = useState(null) // null = aún no se muestra el número
+  const [miCorazon, setMiCorazon] = useState(false)
+  const [enviandoCorazon, setEnviandoCorazon] = useState(false)
 
   useEffect(() => {
     async function cargar() {
@@ -51,6 +62,17 @@ export default function AnuncioCliente({ id }) {
       else {
         setPub(data)
         setEstado('ok')
+        // Corazones (si algo falla, simplemente no se muestran)
+        try {
+          const { data: n } = await supabase.rpc('corazones_publicos', { p_publicacion: id })
+          setCorazones(typeof n === 'number' ? n : null)
+          if (session) {
+            const { data: mio } = await supabase
+              .from('me_gusta').select('publicacion_id')
+              .eq('publicacion_id', id).eq('user_id', session.user.id).maybeSingle()
+            setMiCorazon(!!mio)
+          }
+        } catch (_) {}
         // Cuenta la visita una sola vez por sesión del navegador
         try {
           const clave = `visto-${id}`
@@ -81,6 +103,29 @@ export default function AnuncioCliente({ id }) {
     } catch (_) {
       window.prompt('Copia este enlace:', `${window.location.origin}${rutaVolver}`)
     }
+  }
+
+  async function alternarCorazon() {
+    if (!sesion) {
+      window.location.href = `/login?volver=${encodeURIComponent(rutaVolver)}`
+      return
+    }
+    if (enviandoCorazon) return
+    setEnviandoCorazon(true)
+    const daba = !miCorazon
+    setMiCorazon(daba) // se ve al instante
+    const { error } = daba
+      ? await supabase.from('me_gusta').insert({ publicacion_id: id })
+      : await supabase.from('me_gusta').delete().eq('publicacion_id', id).eq('user_id', miId)
+    if (error && !(daba && error.code === '23505')) {
+      setMiCorazon(!daba) // si falló, vuelve a como estaba
+    } else {
+      try {
+        const { data: n } = await supabase.rpc('corazones_publicos', { p_publicacion: id })
+        setCorazones(typeof n === 'number' ? n : null)
+      } catch (_) {}
+    }
+    setEnviandoCorazon(false)
   }
 
   function reportar() {
@@ -136,6 +181,17 @@ export default function AnuncioCliente({ id }) {
           )}
           <span className="absolute left-3 top-3 rounded-md bg-white/95 px-2 py-0.5 text-xs font-semibold capitalize text-brand">{pub.tipo}</span>
 
+          {!(miId && pub.user_id === miId) && !noDisponible && (
+            <button
+              onClick={alternarCorazon}
+              aria-label={miCorazon ? 'Quitar mi corazón' : 'Me gusta este anuncio'}
+              aria-pressed={miCorazon}
+              className={`absolute right-3 top-3 grid h-10 w-10 place-items-center rounded-full shadow transition active:scale-90 ${miCorazon ? 'bg-white text-red-500' : 'bg-white/90 text-muted hover:text-red-500'}`}
+            >
+              <Corazon lleno={miCorazon} />
+            </button>
+          )}
+
           {fotos.length > 1 && (
             <>
               <button
@@ -189,6 +245,18 @@ export default function AnuncioCliente({ id }) {
             <p className="mt-2"><span className="rounded-md bg-gold-bg px-2 py-0.5 text-base font-extrabold text-gold-ink">Gratis</span></p>
           ) : (
             <p className={`mt-2 font-extrabold text-brand ${pub.precio == null ? 'text-lg' : 'text-2xl'}`}>{precioTexto(pub.precio)}</p>
+          )}
+
+          {corazones !== null && (
+            <p className="mt-2 flex items-center gap-1.5 text-sm font-semibold text-red-500">
+              <Corazon lleno />
+              <span className="text-ink">
+                {corazones === 1 ? 'A 1 vecino le gustó' : `A ${corazones} vecinos les gustó`}
+              </span>
+              {miId && pub.user_id === miId && corazones < 3 && (
+                <span className="text-xs font-normal text-muted">(solo tú lo ves hasta llegar a 3)</span>
+              )}
+            </p>
           )}
 
           <p className="mt-4 whitespace-pre-line text-sm leading-relaxed">{pub.descripcion}</p>

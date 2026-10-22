@@ -21,6 +21,7 @@ export default function AdminPage() {
   const [clasificados, setClasificados] = useState([])
   const [correos, setCorreos] = useState({}) // id del vecino -> correo (solo lo ve el administrador)
   const [metricas, setMetricas] = useState({})
+  const [corazones, setCorazones] = useState({})
   const [ordenAnuncios, setOrdenAnuncios] = useState('recientes')
   const [pestana, setPestana] = useState('pendientes')
   const [busqueda, setBusqueda] = useState('')
@@ -78,6 +79,10 @@ export default function AdminPage() {
       if (!rep.error) setReportes(rep.data || [])
       if (!anu.error) setAnuncios(anu.data || [])
       if (!cla.error) setClasificados(cla.data || [])
+      try {
+        const { data: cz } = await supabase.rpc('mis_corazones')
+        if (cz) setCorazones(Object.fromEntries(cz.map((x) => [x.publicacion_id, x.total])))
+      } catch (_) {}
       // Correos de los vecinos (si falta el SQL de la actualización 25, simplemente no se muestran)
       const { data: cor } = await supabase.rpc('admin_correos')
       if (Array.isArray(cor)) setCorreos(Object.fromEntries(cor.map((c) => [c.id, c.correo])))
@@ -375,7 +380,7 @@ export default function AdminPage() {
                       {a.perfiles?.nombre || 'Vecino'} · {a.barrio || 'Sin barrio'} · {new Date(a.created_at).toLocaleDateString('es-CO')}
                     </p>
                     <p className="text-xs font-semibold text-ink">
-                      {metricas[a.id]?.visitas ?? 0} visitas · {metricas[a.id]?.contactos ?? 0} contactos
+                      {metricas[a.id]?.visitas ?? 0} visitas · {metricas[a.id]?.contactos ?? 0} contactos · ♥ {corazones[a.id] ?? 0}
                     </p>
                   </div>
                 </div>
